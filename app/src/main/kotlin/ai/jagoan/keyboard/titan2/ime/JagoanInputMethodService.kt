@@ -401,9 +401,8 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             symbolPickerCategory = getNextSymbolCategory(symbolPickerCategory)
             // Update KeyEventHandler so it knows the current category
             keyEventHandler.setSymbolCategory(symbolPickerCategory)
-            // Recreate the picker to show new category
-            hideSymbolPicker()
-            showSymbolPicker()
+            // No need to recreate the view - Compose will automatically recompose when symbolPickerCategory changes
+            Log.d(TAG, "Category updated to $symbolPickerCategory")
         } else {
             // Show symbol picker
             Log.d(TAG, "Showing symbol picker")
