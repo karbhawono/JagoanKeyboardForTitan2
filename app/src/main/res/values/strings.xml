@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Jagoan Keyboard for Titan 2</string>
+    <string name="ime_name">Jagoan Keyboard for Titan 2</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Jagoan Keyboard for Titan 2</string>
+    <string name="settings_general">General</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_advanced">Advanced</string>
+
+    <!-- General Settings -->
+    <string name="setting_auto_capitalize">Auto-capitalization</string>
+    <string name="setting_auto_capitalize_desc">Capitalize first letter of sentences</string>
+    <string name="setting_long_press_capitalize">Long-press capitalize</string>
+    <string name="setting_long_press_capitalize_desc">Hold letter key to capitalize</string>
+    <string name="setting_double_space_period">Double-space period</string>
+    <string name="setting_double_space_period_desc">Double-space adds period</string>
+    <string name="setting_text_shortcuts">Word Substitution</string>
+    <string name="setting_text_shortcuts_desc">Expand abbreviations (Im→I\'m)</string>
+    <string name="manage_shortcuts">Manage substitutions</string>
+
+    <!-- Word Substitution Management -->
+    <string name="shortcuts_title">Word Substitution</string>
+    <string name="navigate_back">Navigate back</string>
+    <string name="add_shortcut">Add substitution</string>
+    <string name="edit_shortcut">Edit substitution</string>
+    <string name="delete_shortcut">Delete substitution</string>
+    <string name="no_shortcuts">No substitutions yet. Tap + to add one.</string>
+    <string name="case_sensitive">Case sensitive</string>
+    <string name="default_shortcut">Default</string>
+    <string name="trigger_text">Trigger (e.g., Im)</string>
+    <string name="replacement_text">Replacement (e.g., I\'m)</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Advanced Settings -->
+    <string name="setting_key_repeat">Key repeat</string>
+    <string name="setting_key_repeat_desc">Repeat character on long press</string>
+    <string name="setting_sticky_shift">Sticky Shift</string>
+    <string name="setting_sticky_shift_desc">Tap=one-shot, hold/double=lock</string>
+    <string name="setting_sticky_alt">Sticky Alt</string>
+    <string name="setting_sticky_alt_desc">Tap=one-shot, hold/double=lock</string>
+    <string name="setting_alt_backspace_delete_line">Alt+Backspace deletes line</string>
+    <string name="setting_alt_backspace_delete_line_desc">Delete entire line before cursor</string>
+    <string name="setting_key_repeat_delay">Key repeat delay</string>
+    <string name="setting_key_repeat_rate">Key repeat rate</string>
+
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_version">Version</string>
+    <string name="about_build_number">Build Number</string>
+    <string name="about_build_type">Build Type</string>
+    <string name="about_build_type_debug">Debug</string>
+    <string name="about_build_type_release">Release</string>
+    <string name="about_package">Package</string>
+    <string name="about_license_title">Copyright</string>
+    <string name="about_license_text">Copyright © 2025. Aryo Karbhawono.</string>
+    <string name="about_description">Jagoan Keyboard - A modern IME keyboard for Unihertz Titan 2</string>
+
+    <!-- Enable IME -->
+    <string name="enable_ime_title">Activate Keyboard</string>
+    <string name="enable_ime_message">To use Jagoan Keyboard, you need to activate it from device settings.</string>
+    <string name="enable_ime_button">Open Settings</string>
+</resources>

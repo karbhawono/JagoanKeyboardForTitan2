@@ -1,0 +1,561 @@
+/**
+ * Copyright (c) 2024-2025 Divefire
+ * Original source: https://github.com/Divefire/titan2keyboard
+ *
+ * Modifications Copyright (c) 2025 Aryo Karbhawono
+ *
+ * Modifications:
+ * - Renamed package from com.titan2keyboard.ime to ai.jagoan.keyboard.titan2.ime
+ * - Renamed class from Titan2InputMethodService to JagoanInputMethodService
+ * - Added LazyLog utility integration for improved logging
+ * - Added PerformanceMonitor utility integration
+ * - Added Debouncer utility integration for battery optimization
+ * - Replaced standard Log calls with LazyLog for better performance
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+package ai.jagoan.keyboard.titan2.ime
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.inputmethodservice.InputMethodService
+import android.os.Build
+import android.util.Log
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.core.app.NotificationCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import ai.jagoan.keyboard.titan2.R
+import ai.jagoan.keyboard.titan2.domain.model.KeyEventResult
+import ai.jagoan.keyboard.titan2.domain.model.ModifierState
+import ai.jagoan.keyboard.titan2.domain.model.ModifiersState
+import ai.jagoan.keyboard.titan2.domain.model.SymbolCategory
+import ai.jagoan.keyboard.titan2.domain.repository.SettingsRepository
+import ai.jagoan.keyboard.titan2.ui.ime.SymbolPickerOverlay
+import ai.jagoan.keyboard.titan2.util.Debouncer
+import ai.jagoan.keyboard.titan2.util.LazyLog
+import ai.jagoan.keyboard.titan2.util.PerformanceMonitor
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Main Input Method Service for Jagoan Keyboard for Titan 2
+ * Handles physical keyboard input events
+ */
+@AndroidEntryPoint
+class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
+
+    @Inject
+    lateinit var keyEventHandler: KeyEventHandler
+
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    // Track whether we're in any input field to block capacitive touch
+    private var isInputActive = false
+    private var lastKeyEventTime = 0L
+
+    // Notification for status bar indicator
+    private lateinit var notificationManager: NotificationManager
+    
+    // Debouncer for notification updates to reduce battery drain
+    private var notificationDebouncer: Debouncer? = null
+
+    // Symbol picker window management
+    private var windowManager: WindowManager? = null
+    private var symbolPickerView: ComposeView? = null
+    private var isSymbolPickerShowing = false
+    
+    // Compose state for symbol picker
+    private var symbolPickerVisible by mutableStateOf(false)
+    private var symbolPickerCategory by mutableStateOf(SymbolCategory.PUNCTUATION)
+
+    // Lifecycle owner for Compose in service
+    private val lifecycleOwner = ServiceLifecycleOwner()
+
+    companion object {
+        private const val TAG = "Titan2IME"
+        private const val CAPACITIVE_BLOCK_TIME_MS = 1000L // Block capacitive for 1s after keystroke
+        private const val NOTIFICATION_CHANNEL_ID = "modifier_keys_status_v2"
+        private const val NOTIFICATION_ID = 1001
+    }
+
+    /**
+     * Custom lifecycle owner for running Compose in a Service
+     */
+    private class ServiceLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner {
+        private val lifecycleRegistry = LifecycleRegistry(this)
+        private val savedStateRegistryController = SavedStateRegistryController.create(this)
+
+        override val lifecycle: Lifecycle get() = lifecycleRegistry
+        override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
+
+        fun handleLifecycleEvent(event: Lifecycle.Event) {
+            lifecycleRegistry.handleLifecycleEvent(event)
+        }
+
+        fun performRestore() {
+            savedStateRegistryController.performRestore(null)
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        LazyLog.d(TAG) { "IME Service created" }
+
+        // Initialize lifecycle for Compose
+        lifecycleOwner.performRestore()
+        lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+
+        // Set up notification manager and channel for status bar indicators
+        notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel()
+
+        // Initialize window manager for symbol picker
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        
+        // Initialize notification debouncer (100ms delay to batch rapid updates)
+        notificationDebouncer = Debouncer(serviceScope, delayMs = 100L)
+
+        // Set up modifier state listener
+        keyEventHandler.setModifierStateListener(this)
+
+        // Set up Sym key callback to show/cycle symbol picker
+        keyEventHandler.setSymKeyPressedCallback {
+            handleSymKeyPressed()
+        }
+
+        // Set up Sym picker dismiss callback
+        keyEventHandler.setSymPickerDismissCallback {
+            hideSymbolPicker()
+        }
+
+        // Observe settings changes
+        serviceScope.launch {
+            settingsRepository.settingsFlow.collect { settings ->
+                LazyLog.d(TAG) { "Settings updated: $settings" }
+                LazyLog.d(TAG) { "  stickyShift=${settings.stickyShift}, stickyAlt=${settings.stickyAlt}" }
+                keyEventHandler.updateSettings(settings)
+            }
+        }
+
+        lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Modifier Keys Status",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Shows Shift/Alt key status in status bar"
+                setShowBadge(false)
+                enableLights(false)
+                enableVibration(false)
+                // Silent notification - no sound
+                setSound(null, null)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    override fun onCreateInputView(): View {
+        // Return an empty view for input view since we use WindowManager for symbol picker
+        return View(this)
+    }
+
+    override fun onCreateCandidatesView(): View? {
+        // Reserve candidates view for other functions (autocomplete, suggestions, etc.)
+        return null
+    }
+
+    override fun onEvaluateInputViewShown(): Boolean {
+        // Don't show input view for hardware keyboard
+        return false
+    }
+
+    override fun onShowInputRequested(flags: Int, configChange: Boolean): Boolean {
+        // Always return true to ensure we're active for hardware keyboard
+        // This ensures key events come to us even when there's no soft keyboard shown
+        return true
+    }
+
+    override fun onModifierStateChanged(modifiersState: ModifiersState) {
+        LazyLog.d(TAG) { "Modifier state changed: shift=${modifiersState.shift}, alt=${modifiersState.alt}, symPicker=${modifiersState.symPickerVisible}" }
+
+        // Update status bar notification (debounced to reduce battery drain)
+        LazyLog.d(TAG) { "Scheduling debounced updateStatusBarNotification" }
+        try {
+            notificationDebouncer?.debounce {
+                updateStatusBarNotification(modifiersState)
+            }
+        } catch (e: Exception) {
+            LazyLog.e(TAG, e) { "Error scheduling updateStatusBarNotification" }
+        }
+
+        // Handle symbol picker visibility
+        if (modifiersState.symPickerVisible != symbolPickerVisible) {
+            symbolPickerVisible = modifiersState.symPickerVisible
+            if (symbolPickerVisible) {
+                showSymbolPicker()
+            } else {
+                hideSymbolPicker()
+            }
+        }
+
+        // Update symbol picker category
+        if (modifiersState.symCategory != symbolPickerCategory) {
+            symbolPickerCategory = modifiersState.symCategory
+            keyEventHandler.setSymbolCategory(symbolPickerCategory)
+        }
+    }
+
+    private fun updateStatusBarNotification(modifiersState: ModifiersState) {
+        val shouldShow = modifiersState.isShiftActive() || modifiersState.isAltActive()
+        LazyLog.d(TAG) { "updateStatusBarNotification: shouldShow=$shouldShow" }
+
+        if (shouldShow) {
+            // Choose icon based on which modifiers are active
+            val iconRes = when {
+                modifiersState.isShiftActive() && modifiersState.isAltActive() -> R.drawable.ic_shift_alt
+                modifiersState.isShiftActive() -> R.drawable.ic_shift
+                modifiersState.isAltActive() -> R.drawable.ic_alt
+                else -> R.drawable.ic_shift // Fallback
+            }
+            LazyLog.d(TAG) { "Using icon resource: $iconRes" }
+
+            // Build notification text based on active modifiers
+            val notificationText = buildString {
+                if (modifiersState.isShiftActive()) {
+                    append("SHIFT")
+                    if (modifiersState.shift == ModifierState.LOCKED) {
+                        append(" 🔒")
+                    }
+                }
+                if (modifiersState.isAltActive()) {
+                    if (isNotEmpty()) append(" + ")
+                    append("ALT")
+                    if (modifiersState.alt == ModifierState.LOCKED) {
+                        append(" 🔒")
+                    }
+                }
+            }
+            LazyLog.d(TAG) { "Notification text: $notificationText" }
+
+            try {
+                val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                    .setSmallIcon(iconRes)
+                    .setContentTitle("Modifier Keys Active")
+                    .setContentText(notificationText)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setOngoing(true)
+                    .setShowWhen(false)
+                    .build()
+
+                notificationManager.notify(NOTIFICATION_ID, notification)
+                LazyLog.d(TAG) { "Notification posted successfully" }
+            } catch (e: Exception) {
+                LazyLog.e(TAG, e) { "Error posting notification" }
+            }
+        } else {
+            // Cancel notification when no modifiers are active
+            LazyLog.d(TAG) { "Canceling notification" }
+            notificationManager.cancel(NOTIFICATION_ID)
+        }
+    }
+
+    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+        super.onStartInput(attribute, restarting)
+        LazyLog.d(TAG) { 
+            "Input started - inputType: ${attribute?.inputType}, " +
+                "packageName: ${attribute?.packageName}, " +
+                "fieldId: ${attribute?.fieldId}, " +
+                "restarting: $restarting"
+        }
+
+        // Log input type details for debugging
+        attribute?.let { info ->
+            val typeClass = info.inputType and android.text.InputType.TYPE_MASK_CLASS
+            val typeVariation = info.inputType and android.text.InputType.TYPE_MASK_VARIATION
+            val hasNoSuggestions = (info.inputType and android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0
+            val hasAutoCorrectionDisabled = (info.inputType and android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT) == 0
+            LazyLog.d(TAG) { 
+                "Input type - class: $typeClass, variation: $typeVariation, " +
+                    "noSuggestions: $hasNoSuggestions, autoCorrectionDisabled: $hasAutoCorrectionDisabled"
+            }
+        }
+
+        // Block capacitive touch for ANY input field
+        isInputActive = attribute != null
+        LazyLog.d(TAG) { "isInputActive: $isInputActive" }
+
+        // Update the key event handler with current editor info
+        keyEventHandler.updateEditorInfo(attribute)
+
+        // Check if we should activate auto-cap shift at start of input
+        keyEventHandler.onInputStarted(currentInputConnection)
+    }
+
+    override fun onFinishInput() {
+        super.onFinishInput()
+        LazyLog.d(TAG) { "Input finished" }
+        isInputActive = false
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        event ?: return super.onKeyDown(keyCode, event)
+
+        // Track key event time for capacitive touch blocking
+        lastKeyEventTime = System.currentTimeMillis()
+
+        val result = keyEventHandler.handleKeyDown(event, currentInputConnection)
+        return when (result) {
+            KeyEventResult.Handled -> {
+                LazyLog.d(TAG) { "Key handled: $keyCode" }
+                true
+            }
+            KeyEventResult.NotHandled -> {
+                super.onKeyDown(keyCode, event)
+            }
+        }
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        event ?: return super.onKeyUp(keyCode, event)
+
+        val result = keyEventHandler.handleKeyUp(event, currentInputConnection)
+        return when (result) {
+            KeyEventResult.Handled -> true
+            KeyEventResult.NotHandled -> super.onKeyUp(keyCode, event)
+        }
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        // Block capacitive touch events (trackpad/scroll gestures) when any input is active
+        if (isInputActive) {
+            val timeSinceLastKey = System.currentTimeMillis() - lastKeyEventTime
+
+            // Block if we recently typed (within 1 second)
+            if (lastKeyEventTime > 0 && timeSinceLastKey < CAPACITIVE_BLOCK_TIME_MS) {
+                LazyLog.d(TAG) { "Blocking capacitive touch event (${timeSinceLastKey}ms since last key)" }
+                return true // Consume the event
+            }
+
+            // Also block all capacitive touch while any input field is active
+            LazyLog.d(TAG) { "Blocking capacitive touch event (input active)" }
+            return true // Consume the event
+        }
+
+        // No input active, allow capacitive touch
+        return super.onGenericMotionEvent(event)
+    }
+
+    /**
+     * Handle Sym key press - toggle symbol picker
+     */
+    private fun handleSymKeyPressed() {
+        Log.d(TAG, "handleSymKeyPressed called! symbolPickerVisible=$symbolPickerVisible")
+        if (symbolPickerVisible) {
+            // Already visible - cycle to next category
+            Log.d(TAG, "Cycling to next category from $symbolPickerCategory")
+            symbolPickerCategory = getNextSymbolCategory(symbolPickerCategory)
+            // Update KeyEventHandler so it knows the current category
+            keyEventHandler.setSymbolCategory(symbolPickerCategory)
+            // Recreate the picker to show new category
+            hideSymbolPicker()
+            showSymbolPicker()
+        } else {
+            // Show symbol picker
+            Log.d(TAG, "Showing symbol picker")
+            symbolPickerCategory = SymbolCategory.PUNCTUATION
+            keyEventHandler.setSymbolCategory(symbolPickerCategory)
+            showSymbolPicker()
+        }
+    }
+
+    private fun getNextSymbolCategory(current: SymbolCategory): SymbolCategory {
+        val categories = SymbolCategory.entries
+        val currentIndex = categories.indexOf(current)
+        val nextIndex = (currentIndex + 1) % categories.size
+        return categories[nextIndex]
+    }
+
+    /**
+     * Show the symbol picker overlay
+     */
+    private fun showSymbolPicker() = PerformanceMonitor.measure("symbol_picker_show") {
+        try {
+            Log.d(TAG, "showSymbolPicker called")
+            
+            // Always remove existing overlay first to ensure clean state
+            if (isSymbolPickerShowing) {
+                try {
+                    symbolPickerView?.let { view ->
+                        windowManager?.removeView(view)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error removing old overlay", e)
+                }
+                symbolPickerView = null
+                isSymbolPickerShowing = false
+            }
+
+            // Check window token before creating
+            val token = window?.window?.decorView?.windowToken
+            if (token == null) {
+                Log.e(TAG, "No window token available for symbol picker")
+                return@measure
+            }
+
+            val composeView = ComposeView(this).apply {
+                setViewTreeLifecycleOwner(lifecycleOwner)
+                setViewTreeSavedStateRegistryOwner(lifecycleOwner)
+
+                setContent {
+                    SymbolPickerOverlay(
+                        visible = true,  // Always visible when this ComposeView exists
+                        currentCategory = symbolPickerCategory,
+                        onSymbolSelected = { symbol ->
+                            Log.d(TAG, "Symbol selected: $symbol")
+                            keyEventHandler.insertSymbol(symbol, currentInputConnection)
+                            hideSymbolPicker()
+                        },
+                        onDismiss = {
+                            Log.d(TAG, "Dismiss called")
+                            hideSymbolPicker()
+                        }
+                    )
+                }
+            }
+
+            // Window parameters for overlay
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.CENTER
+                this.token = window?.window?.decorView?.windowToken
+            }
+
+            windowManager?.addView(composeView, params)
+            symbolPickerView = composeView
+            isSymbolPickerShowing = true
+            symbolPickerVisible = true
+            keyEventHandler.setSymPickerVisible(true)
+            Log.d(TAG, "Symbol picker shown")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing symbol picker", e)
+        }
+    }
+
+    /**
+     * Hide the symbol picker
+     */
+    private fun hideSymbolPicker() {
+        Log.d(TAG, "hideSymbolPicker called")
+        
+        symbolPickerVisible = false
+        keyEventHandler.setSymPickerVisible(false)
+
+        if (isSymbolPickerShowing) {
+            try {
+                symbolPickerView?.let { view ->
+                    Log.d(TAG, "Removing view from WindowManager")
+                    windowManager?.removeView(view)
+                }
+                isSymbolPickerShowing = false
+            } catch (e: Exception) {
+                LazyLog.w(TAG, e) { "Error removing view" }
+            }
+        }
+    }
+
+    /**
+     * Remove the symbol picker completely
+     */
+    private fun removeSymbolPicker() {
+        LazyLog.d(TAG) { "Removing symbol picker" }
+
+        try {
+            if (isSymbolPickerShowing) {
+                symbolPickerView?.let { view ->
+                    windowManager?.removeView(view)
+                }
+            }
+            symbolPickerView = null
+            isSymbolPickerShowing = false
+            symbolPickerVisible = false
+        } catch (e: Exception) {
+            LazyLog.e(TAG, e) { "Error removing symbol picker" }
+        }
+    }
+
+    override fun onDestroy() {
+        LazyLog.d(TAG) { "IME Service destroyed" }
+
+        // Cancel any pending debounced notifications
+        notificationDebouncer?.cancel()
+        notificationDebouncer = null
+
+        // Clean up KeyEventHandler resources (accent handlers, etc.)
+        keyEventHandler.cleanup()
+
+        // Remove symbol picker if attached
+        removeSymbolPicker()
+
+        // Update lifecycle
+        lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+
+        // Cancel any active notifications
+        notificationManager.cancel(NOTIFICATION_ID)
+        serviceScope.cancel()
+        super.onDestroy()
+    }
+}
