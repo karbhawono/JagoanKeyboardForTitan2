@@ -39,5 +39,8 @@ data class KeyboardSettings(
     val keyRepeatRate: Long = 50L,   // milliseconds
     val preferredCurrency: String? = "Rp", // Preferred currency symbol (defaults to Rupiah, null = use locale default)
     val selectedLanguage: String = "en", // Primary language for accents (en, fr, de, es, pt, it, etc.)
-    val longPressAccents: Boolean = false // Long-press shows accent variants instead of uppercase
+    val longPressAccents: Boolean = false, // Long-press shows accent variants instead of uppercase
+    val autocorrectEnabled: Boolean = true, // Enable autocorrect on space
+    val autocorrectLanguages: List<String> = listOf("en", "id"), // Languages for autocorrect dictionaries
+    val showSuggestions: Boolean = false // Show suggestion bar (not implemented yet)
 )

@@ -61,7 +61,10 @@ class SettingsRepositoryImpl @Inject constructor(
                 keyRepeatRate = preferences[PreferencesKeys.KEY_REPEAT_RATE] ?: 50L,
                 preferredCurrency = preferences[PreferencesKeys.PREFERRED_CURRENCY] ?: "Rp",
                 selectedLanguage = preferences[PreferencesKeys.SELECTED_LANGUAGE] ?: "en",
-                longPressAccents = preferences[PreferencesKeys.LONG_PRESS_ACCENTS] ?: false
+                longPressAccents = preferences[PreferencesKeys.LONG_PRESS_ACCENTS] ?: false,
+                autocorrectEnabled = preferences[PreferencesKeys.AUTOCORRECT_ENABLED] ?: true,
+                autocorrectLanguages = preferences[PreferencesKeys.AUTOCORRECT_LANGUAGES]?.split(",") ?: listOf("en", "id"),
+                showSuggestions = preferences[PreferencesKeys.SHOW_SUGGESTIONS] ?: false
             )
         }
         .distinctUntilChanged() // Only emit when settings actually change
@@ -89,6 +92,13 @@ class SettingsRepositoryImpl @Inject constructor(
                 }
                 "selectedLanguage" -> preferences[PreferencesKeys.SELECTED_LANGUAGE] = value as String
                 "longPressAccents" -> preferences[PreferencesKeys.LONG_PRESS_ACCENTS] = value as Boolean
+                "autocorrectEnabled" -> preferences[PreferencesKeys.AUTOCORRECT_ENABLED] = value as Boolean
+                "autocorrectLanguages" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val languages = value as List<String>
+                    preferences[PreferencesKeys.AUTOCORRECT_LANGUAGES] = languages.joinToString(",")
+                }
+                "showSuggestions" -> preferences[PreferencesKeys.SHOW_SUGGESTIONS] = value as Boolean
             }
         }
     }

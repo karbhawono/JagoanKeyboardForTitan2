@@ -29,10 +29,14 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import ai.jagoan.keyboard.titan2.data.datastore.ShortcutsDataStore
+import ai.jagoan.keyboard.titan2.data.repository.DictionaryRepositoryImpl
 import ai.jagoan.keyboard.titan2.data.repository.SettingsRepositoryImpl
 import ai.jagoan.keyboard.titan2.data.repository.ShortcutRepositoryImpl
+import ai.jagoan.keyboard.titan2.domain.repository.DictionaryRepository
 import ai.jagoan.keyboard.titan2.domain.repository.SettingsRepository
 import ai.jagoan.keyboard.titan2.domain.repository.ShortcutRepository
+import ai.jagoan.keyboard.titan2.engine.AutocorrectEngine
+import ai.jagoan.keyboard.titan2.engine.AutocorrectManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -79,5 +83,30 @@ object AppModule {
         shortcutsDataStore: ShortcutsDataStore
     ): ShortcutRepository {
         return ShortcutRepositoryImpl(shortcutsDataStore)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDictionaryRepository(
+        @ApplicationContext context: Context
+    ): DictionaryRepository {
+        return DictionaryRepositoryImpl(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAutocorrectEngine(
+        dictionaryRepository: DictionaryRepository
+    ): AutocorrectEngine {
+        return AutocorrectEngine(dictionaryRepository)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAutocorrectManager(
+        dictionaryRepository: DictionaryRepository,
+        autocorrectEngine: AutocorrectEngine
+    ): AutocorrectManager {
+        return AutocorrectManager(dictionaryRepository, autocorrectEngine)
     }
 }

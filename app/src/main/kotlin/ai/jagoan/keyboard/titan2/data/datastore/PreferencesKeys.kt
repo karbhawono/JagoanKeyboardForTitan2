@@ -44,4 +44,7 @@ object PreferencesKeys {
     val PREFERRED_CURRENCY = stringPreferencesKey("preferred_currency")
     val SELECTED_LANGUAGE = stringPreferencesKey("selected_language")
     val LONG_PRESS_ACCENTS = booleanPreferencesKey("long_press_accents")
+    val AUTOCORRECT_ENABLED = booleanPreferencesKey("autocorrect_enabled")
+    val AUTOCORRECT_LANGUAGES = stringPreferencesKey("autocorrect_languages")
+    val SHOW_SUGGESTIONS = booleanPreferencesKey("show_suggestions")
 }

@@ -62,7 +62,8 @@ interface ModifierStateListener {
 @Singleton
 class KeyEventHandler @Inject constructor(
     private val shortcutRepository: ShortcutRepository,
-    private val accentRepository: ai.jagoan.keyboard.titan2.data.AccentRepository
+    private val accentRepository: ai.jagoan.keyboard.titan2.data.AccentRepository,
+    private val autocorrectManager: ai.jagoan.keyboard.titan2.engine.AutocorrectManager
 ) {
 
     private var currentSettings: KeyboardSettings = KeyboardSettings()
@@ -454,6 +455,38 @@ class KeyEventHandler @Inject constructor(
             lastReplacement = null
         }
 
+        // Handle backspace - check if we should undo autocorrect
+        if (event.keyCode == KeyEvent.KEYCODE_DEL && currentSettings.autocorrectEnabled) {
+            if (autocorrectManager.handleBackspace()) {
+                // Autocorrect undo available
+                val undoWord = autocorrectManager.getUndoWord()
+                if (undoWord != null) {
+                    // Delete the corrected word and space, restore original
+                    val correctedLength = inputConnection.getTextBeforeCursor(50, 0)?.toString()
+                        ?.trimEnd()?.takeLastWhile { !it.isWhitespace() }?.length ?: 0
+                    if (correctedLength > 0) {
+                        inputConnection.deleteSurroundingText(correctedLength + 1, 0)  // +1 for space
+                        inputConnection.commitText(undoWord, 1)
+                        autocorrectManager.clearUndo()
+                        LazyLog.d(TAG) { "Autocorrect undone, restored: $undoWord" }
+                        return KeyEventResult.Handled
+                    }
+                }
+            } else {
+                // Not undoing, just handle backspace for autocorrect tracking
+                autocorrectManager.handleBackspace()
+            }
+        }
+
+        // Track characters for autocorrect
+        if (event.keyCode >= KeyEvent.KEYCODE_A && event.keyCode <= KeyEvent.KEYCODE_Z) {
+            val char = ('a' + (event.keyCode - KeyEvent.KEYCODE_A))
+            autocorrectManager.addCharacter(char)
+        } else if (event.keyCode == KeyEvent.KEYCODE_APOSTROPHE) {
+            // Track apostrophes for contractions (e.g., don't, can't)
+            autocorrectManager.addCharacter('\'')
+        }
+
         // Clear tracking on any non-backspace key
         if (event.keyCode != KeyEvent.KEYCODE_DEL) {
             lastReplacement = null
@@ -490,6 +523,21 @@ class KeyEventHandler @Inject constructor(
             }
         }
 
+        // Handle autocorrect on space key
+        if (event.keyCode == KeyEvent.KEYCODE_SPACE && currentSettings.autocorrectEnabled) {
+            val correctedWord = autocorrectManager.handleSpace()
+            if (correctedWord != null) {
+                // Get the original word length from autocorrect manager
+                val undoWord = autocorrectManager.getUndoWord()
+                if (undoWord != null) {
+                    // Delete the original word and space, then insert corrected word and space
+                    inputConnection.deleteSurroundingText(undoWord.length + 1, 0)
+                    inputConnection.commitText("$correctedWord ", 1)
+                    LazyLog.d(TAG) { "Autocorrect applied: $undoWord -> $correctedWord" }
+                }
+            }
+        }
+
         // Handle double-space period (for non-shortcut cases)
         if (event.keyCode == KeyEvent.KEYCODE_SPACE && currentSettings.doubleSpacePeriod) {
             val currentTime = System.currentTimeMillis()
@@ -509,6 +557,11 @@ class KeyEventHandler @Inject constructor(
         // Reset space timer if any other key is pressed
         if (event.keyCode != KeyEvent.KEYCODE_SPACE) {
             lastSpaceTime = 0L
+        }
+
+        // Handle word boundaries for autocorrect
+        if (isWordBoundary(event.keyCode) && event.keyCode != KeyEvent.KEYCODE_SPACE) {
+            autocorrectManager.handleWordBoundary()
         }
 
         // Clear skip flag when typing a letter or other non-boundary key

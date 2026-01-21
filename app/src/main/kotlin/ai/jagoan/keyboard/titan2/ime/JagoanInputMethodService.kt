@@ -87,6 +87,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    @Inject
+    lateinit var autocorrectManager: ai.jagoan.keyboard.titan2.engine.AutocorrectManager
+
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // Track whether we're in any input field to block capacitive touch
@@ -168,12 +171,23 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             hideSymbolPicker()
         }
 
+        // Initialize autocorrect
+        serviceScope.launch {
+            autocorrectManager.initialize(listOf("en", "id"))
+        }
+
         // Observe settings changes
         serviceScope.launch {
             settingsRepository.settingsFlow.collect { settings ->
                 LazyLog.d(TAG) { "Settings updated: $settings" }
                 LazyLog.d(TAG) { "  stickyShift=${settings.stickyShift}, stickyAlt=${settings.stickyAlt}" }
                 keyEventHandler.updateSettings(settings)
+                
+                // Update autocorrect settings
+                autocorrectManager.setEnabled(settings.autocorrectEnabled)
+                if (settings.autocorrectEnabled && settings.autocorrectLanguages.isNotEmpty()) {
+                    autocorrectManager.initialize(settings.autocorrectLanguages)
+                }
             }
         }
 
@@ -331,6 +345,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
         // Update the key event handler with current editor info
         keyEventHandler.updateEditorInfo(attribute)
+
+        // Reset autocorrect state for new input field
+        autocorrectManager.reset()
 
         // Check if we should activate auto-cap shift at start of input
         keyEventHandler.onInputStarted(currentInputConnection)
@@ -543,6 +560,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
         // Clean up KeyEventHandler resources (accent handlers, etc.)
         keyEventHandler.cleanup()
+
+        // Clean up autocorrect manager
+        autocorrectManager.cleanup()
 
         // Remove symbol picker if attached
         removeSymbolPicker()
