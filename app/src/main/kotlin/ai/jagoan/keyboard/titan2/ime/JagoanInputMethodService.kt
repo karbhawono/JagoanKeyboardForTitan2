@@ -248,6 +248,16 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         return null
     }
     
+    override fun isExtractViewShown(): Boolean {
+        // Never show extract view - prevents minimize/keyboard switcher buttons
+        return false
+    }
+    
+    override fun isShowInputRequested(): Boolean {
+        // Don't show standard input - prevents system UI controls
+        return false
+    }
+    
     private fun handleSuggestionClick(word: String) {
         val inputConnection = currentInputConnection ?: return
         val currentWord = autocorrectManager.getCurrentWord()
@@ -274,6 +284,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     private fun showSuggestionBar() = PerformanceMonitor.measure("suggestion_bar_show") {
         try {
             Log.d(TAG, "showSuggestionBar called")
+            
+            // Suppress extract mode UI controls
+            setExtractViewShown(false)
             
             // Don't show if symbol picker is visible
             if (isSymbolPickerShowing) {
@@ -333,6 +346,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                         
                         // Request showing input view to reserve space
                         requestShowSelf(0)
+                        
+                        // Suppress extract mode controls
+                        setExtractViewShown(false)
                         
                         // Trigger insets computation update
                         window?.window?.decorView?.post {
@@ -504,6 +520,11 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     override fun onShowInputRequested(flags: Int, configChange: Boolean): Boolean {
         // Show input view for hardware keyboard to reserve space
         return true
+    }
+    
+    override fun isInputViewShown(): Boolean {
+        // Report that input view is shown to reserve space, but prevent system controls
+        return isSuggestionBarShowing && measuredSuggestionBarHeight > 0
     }
 
 
