@@ -42,5 +42,5 @@ data class KeyboardSettings(
     val longPressAccents: Boolean = false, // Long-press shows accent variants instead of uppercase
     val autocorrectEnabled: Boolean = true, // Enable autocorrect on space
     val autocorrectLanguages: List<String> = listOf("en", "id"), // Languages for autocorrect dictionaries
-    val showSuggestions: Boolean = false // Show suggestion bar (not implemented yet)
+    val showSuggestions: Boolean = true // Show suggestion bar with autocorrect suggestions
 )

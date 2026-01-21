@@ -91,6 +91,11 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     lateinit var autocorrectManager: ai.jagoan.keyboard.titan2.engine.AutocorrectManager
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    
+    // Suggestion bar for autocorrect
+    private var suggestionBarView: ComposeView? = null
+    private var currentWordState by mutableStateOf("")
+    private var suggestionsState by mutableStateOf<List<ai.jagoan.keyboard.titan2.domain.model.AutocorrectSuggestion>>(emptyList())
 
     // Track whether we're in any input field to block capacitive touch
     private var isInputActive = false
@@ -219,8 +224,65 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     }
 
     override fun onCreateCandidatesView(): View? {
-        // Reserve candidates view for other functions (autocomplete, suggestions, etc.)
-        return null
+        // Create suggestion bar view for autocorrect
+        if (suggestionBarView == null) {
+            suggestionBarView = ComposeView(this).apply {
+                setViewTreeLifecycleOwner(lifecycleOwner)
+                setViewTreeSavedStateRegistryOwner(lifecycleOwner)
+                
+                setContent {
+                    ai.jagoan.keyboard.titan2.ui.ime.SuggestionBar(
+                        currentWord = currentWordState,
+                        suggestions = suggestionsState,
+                        onSuggestionClick = { selectedWord ->
+                            handleSuggestionClick(selectedWord)
+                        }
+                    )
+                }
+            }
+        }
+        return suggestionBarView
+    }
+    
+    private fun handleSuggestionClick(word: String) {
+        val inputConnection = currentInputConnection ?: return
+        val currentWord = autocorrectManager.getCurrentWord()
+        
+        if (currentWord.isNotEmpty()) {
+            // Delete the current word
+            inputConnection.deleteSurroundingText(currentWord.length, 0)
+        }
+        
+        // Insert the selected word with a space
+        inputConnection.commitText("$word ", 1)
+        
+        // Commit the word to context and clear suggestions
+        autocorrectManager.commitWord(word)
+        updateSuggestions("", emptyList())
+    }
+    
+    private fun updateSuggestions(word: String, suggestions: List<ai.jagoan.keyboard.titan2.domain.model.AutocorrectSuggestion>) {
+        currentWordState = word
+        suggestionsState = suggestions
+        
+        // Show or hide candidates view based on whether we have content
+        val shouldShow = word.isNotEmpty() || suggestions.isNotEmpty()
+        setCandidatesViewShown(shouldShow)
+    }
+    
+    private fun updateSuggestionsFromAutocorrect() {
+        val currentWord = autocorrectManager.getCurrentWord()
+        
+        if (currentWord.isEmpty()) {
+            updateSuggestions("", emptyList())
+            return
+        }
+        
+        // Get suggestions from autocorrect manager
+        val suggestions = autocorrectManager.getSuggestions(currentWord, maxSuggestions = 3)
+        
+        // Update UI
+        updateSuggestions(currentWord, suggestions)
     }
 
     override fun onEvaluateInputViewShown(): Boolean {
@@ -348,6 +410,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
         // Reset autocorrect state for new input field
         autocorrectManager.reset()
+        
+        // Clear suggestions
+        updateSuggestions("", emptyList())
 
         // Check if we should activate auto-cap shift at start of input
         keyEventHandler.onInputStarted(currentInputConnection)
@@ -357,6 +422,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         super.onFinishInput()
         LazyLog.d(TAG) { "Input finished" }
         isInputActive = false
+        
+        // Clear suggestions
+        updateSuggestions("", emptyList())
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -366,6 +434,12 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         lastKeyEventTime = System.currentTimeMillis()
 
         val result = keyEventHandler.handleKeyDown(event, currentInputConnection)
+        
+        // Update suggestions after key event
+        serviceScope.launch {
+            updateSuggestionsFromAutocorrect()
+        }
+        
         return when (result) {
             KeyEventResult.Handled -> {
                 LazyLog.d(TAG) { "Key handled: $keyCode" }
@@ -563,6 +637,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
         // Clean up autocorrect manager
         autocorrectManager.cleanup()
+        
+        // Clean up suggestion bar
+        suggestionBarView = null
 
         // Remove symbol picker if attached
         removeSymbolPicker()

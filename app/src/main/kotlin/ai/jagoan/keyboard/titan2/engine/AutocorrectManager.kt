@@ -91,19 +91,19 @@ class AutocorrectManager @Inject constructor(
     /**
      * Handle space key press - trigger autocorrect if needed.
      * Returns the corrected word if autocorrection was applied, null otherwise.
+     * Does NOT clear currentWord - that happens when user commits a choice.
      */
     fun handleSpace(): String? {
         if (!isReady() || currentWord.isEmpty()) return null
         
         val word = currentWord.toString()
-        currentWord.clear()
-        
-        // Add to context
-        addToContext(word)
         
         // Check if word should be ignored
         if (autocorrectEngine.shouldIgnore(word)) {
             Log.d(TAG, "Ignoring word: $word")
+            // Add to context and clear for ignored words
+            addToContext(word)
+            currentWord.clear()
             return null
         }
         
@@ -116,12 +116,15 @@ class AutocorrectManager @Inject constructor(
         
         if (suggestions.isEmpty()) {
             Log.d(TAG, "No suggestions for: $word")
+            // Word is correct, add to context and clear
+            addToContext(word)
+            currentWord.clear()
             return null
         }
         
         val topSuggestion = suggestions.first()
         
-        // Auto-apply high confidence suggestions
+        // Auto-apply only contractions (high confidence, unambiguous)
         if (autocorrectEngine.shouldAutoApply(suggestions)) {
             val corrected = topSuggestion.suggestion
             Log.d(TAG, "Auto-applying autocorrect: $word -> $corrected (confidence: ${topSuggestion.confidence})")
@@ -132,15 +135,16 @@ class AutocorrectManager @Inject constructor(
                 wasAutoApplied = true
             )
             
-            // Update context with corrected word
-            if (contextWords.isNotEmpty() && contextWords.last() == word) {
-                contextWords[contextWords.lastIndex] = corrected
-            }
+            // Add corrected word to context and clear
+            addToContext(corrected)
+            currentWord.clear()
             
             return corrected
         }
         
-        Log.d(TAG, "Suggestion confidence too low for auto-apply: ${topSuggestion.confidence}")
+        // Don't auto-apply, keep currentWord for suggestion bar
+        // currentWord will be cleared when user selects a suggestion or types next word
+        Log.d(TAG, "Not auto-applying, showing suggestions for: $word")
         return null
     }
     
@@ -186,6 +190,16 @@ class AutocorrectManager @Inject constructor(
      */
     fun clearCurrentWord() {
         currentWord.clear()
+    }
+    
+    /**
+     * Commit a word (user selected from suggestions or typed correctly).
+     * @param word The word to commit to context
+     */
+    fun commitWord(word: String) {
+        addToContext(word)
+        currentWord.clear()
+        lastAutocorrection = null
     }
     
     /**

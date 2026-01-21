@@ -480,6 +480,14 @@ class KeyEventHandler @Inject constructor(
 
         // Track characters for autocorrect
         if (event.keyCode >= KeyEvent.KEYCODE_A && event.keyCode <= KeyEvent.KEYCODE_Z) {
+            // If we have a current word that wasn't committed (user kept typing after space showed suggestions)
+            // commit it now as they're starting a new word
+            if (autocorrectManager.getCurrentWord().isNotEmpty() && 
+                inputConnection.getTextBeforeCursor(1, 0)?.toString()?.lastOrNull()?.isWhitespace() == true) {
+                val previousWord = autocorrectManager.getCurrentWord()
+                autocorrectManager.commitWord(previousWord)
+            }
+            
             val char = ('a' + (event.keyCode - KeyEvent.KEYCODE_A))
             autocorrectManager.addCharacter(char)
         } else if (event.keyCode == KeyEvent.KEYCODE_APOSTROPHE) {
@@ -527,15 +535,19 @@ class KeyEventHandler @Inject constructor(
         if (event.keyCode == KeyEvent.KEYCODE_SPACE && currentSettings.autocorrectEnabled) {
             val correctedWord = autocorrectManager.handleSpace()
             if (correctedWord != null) {
-                // Get the original word length from autocorrect manager
+                // Auto-correction applied (contraction)
                 val undoWord = autocorrectManager.getUndoWord()
                 if (undoWord != null) {
-                    // Delete the original word and space, then insert corrected word and space
-                    inputConnection.deleteSurroundingText(undoWord.length + 1, 0)
+                    // Delete the original word and insert corrected word with space
+                    inputConnection.deleteSurroundingText(undoWord.length, 0)
                     inputConnection.commitText("$correctedWord ", 1)
                     LazyLog.d(TAG) { "Autocorrect applied: $undoWord -> $correctedWord" }
+                    // Return Handled to prevent double space insertion
+                    return KeyEventResult.Handled
                 }
             }
+            // If no auto-correction, word is either correct or has suggestions showing
+            // Let space be inserted normally, suggestions will be shown in bar
         }
 
         // Handle double-space period (for non-shortcut cases)

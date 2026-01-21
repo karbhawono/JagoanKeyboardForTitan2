@@ -64,7 +64,7 @@ class SettingsRepositoryImpl @Inject constructor(
                 longPressAccents = preferences[PreferencesKeys.LONG_PRESS_ACCENTS] ?: false,
                 autocorrectEnabled = preferences[PreferencesKeys.AUTOCORRECT_ENABLED] ?: true,
                 autocorrectLanguages = preferences[PreferencesKeys.AUTOCORRECT_LANGUAGES]?.split(",") ?: listOf("en", "id"),
-                showSuggestions = preferences[PreferencesKeys.SHOW_SUGGESTIONS] ?: false
+                showSuggestions = preferences[PreferencesKeys.SHOW_SUGGESTIONS] ?: true
             )
         }
         .distinctUntilChanged() // Only emit when settings actually change

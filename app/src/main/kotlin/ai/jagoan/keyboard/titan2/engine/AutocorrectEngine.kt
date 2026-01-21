@@ -311,16 +311,17 @@ class AutocorrectEngine(
     
     /**
      * Check if autocorrect should be applied automatically (high confidence).
+     * Only auto-applies contractions (e.g., dont -> don't) for better UX.
+     * Other corrections should be shown in suggestion bar.
      */
     fun shouldAutoApply(suggestions: List<AutocorrectSuggestion>): Boolean {
         if (suggestions.isEmpty()) return false
         
         val topSuggestion = suggestions.first()
         
-        // Auto-apply only for high confidence suggestions
-        // and if there's a clear winner
-        return topSuggestion.isHighConfidence() && 
-               (suggestions.size == 1 || suggestions[0].confidence - suggestions[1].confidence >= 0.2f)
+        // Only auto-apply contractions - they have very high confidence and are unambiguous
+        // All other corrections should be shown in suggestion bar for user to choose
+        return topSuggestion.source == SuggestionSource.CONTRACTION && topSuggestion.confidence >= 0.9f
     }
     
     /**
