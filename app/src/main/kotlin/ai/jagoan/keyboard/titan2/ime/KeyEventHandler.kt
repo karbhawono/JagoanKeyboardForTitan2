@@ -12,6 +12,7 @@
  * - Added currency shortcut mode tracking (currencyShortcutMode, currencyCountryCode, currencyModeStartTime)
  * - Added handleCurrencyShortcut() function for processing 2-letter country codes
  * - Added clearCurrencyShortcutMode() function for mode cleanup
+ * - Modified insertSymbol() to automatically add space after currency symbols
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -156,9 +157,18 @@ class KeyEventHandler @Inject constructor(
 
     /**
      * Insert a symbol from the symbol picker
+     * Automatically adds a space after currency symbols for better UX
      */
     fun insertSymbol(symbol: String, inputConnection: InputConnection?) {
-        inputConnection?.commitText(symbol, 1)
+        // Check if this is a currency symbol and add space after it
+        val isCurrency = ai.jagoan.keyboard.titan2.domain.model.SymbolData.isCurrencySymbol(symbol)
+        val textToInsert = if (isCurrency) {
+            "$symbol "
+        } else {
+            symbol
+        }
+        Log.d(TAG, "insertSymbol: symbol='$symbol', isCurrency=$isCurrency, textToInsert='$textToInsert'")
+        inputConnection?.commitText(textToInsert, 1)
         // Clear one-shot modifiers after inserting
         clearOneShotModifiers()
     }
@@ -709,7 +719,7 @@ class KeyEventHandler @Inject constructor(
                         Log.d(TAG, "SYM: Double-tap or long-press, inserting currency")
                         val currency = currentSettings.preferredCurrency?.takeIf { it.isNotEmpty() }
                             ?: ai.jagoan.keyboard.titan2.util.LocaleUtils.getDefaultCurrencySymbol()
-                        inputConnection.commitText(currency, 1)
+                        inputConnection.commitText("$currency ", 1)
 
                         // Dismiss the symbol picker if it's visible (from first tap)
                         if (isSymPickerVisible) {
@@ -1056,8 +1066,8 @@ class KeyEventHandler @Inject constructor(
             val currency = getCurrencyForCountryCode(countryCode)
             
             if (currency != null) {
-                // Insert the currency symbol
-                inputConnection?.commitText(currency, 1)
+                // Insert the currency symbol with space
+                inputConnection?.commitText("$currency ", 1)
                 Log.d(TAG, "Currency shortcut: $countryCode → $currency inserted")
             } else {
                 // Unknown country code

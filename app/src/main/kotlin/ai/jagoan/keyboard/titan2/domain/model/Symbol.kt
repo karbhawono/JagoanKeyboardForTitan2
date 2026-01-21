@@ -6,6 +6,7 @@
  *
  * Modifications:
  * - Renamed package from com.titan2keyboard.domain.model to ai.jagoan.keyboard.titan2.domain.model
+ * - Added isCurrencySymbol() helper function to check if a symbol is a currency symbol
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -249,4 +250,11 @@ object SymbolData {
      * Get the default category to show
      */
     fun getDefaultCategory(): SymbolCategory = SymbolCategory.PUNCTUATION
+
+    /**
+     * Check if a given symbol is a currency symbol
+     */
+    fun isCurrencySymbol(symbol: String): Boolean {
+        return currencySymbols.any { it.character == symbol }
+    }
 }
