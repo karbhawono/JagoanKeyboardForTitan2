@@ -40,6 +40,8 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -119,6 +121,10 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
     // Lifecycle owner for Compose in service
     private val lifecycleOwner = ServiceLifecycleOwner()
+    
+    // Input view and suggestion bar height tracking
+    private var inputViewForSpacing: View? = null
+    private var measuredSuggestionBarHeight: Int = 0
 
     companion object {
         private const val TAG = "Titan2IME"
@@ -220,8 +226,16 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     }
 
     override fun onCreateInputView(): View {
-        // Return an empty view for input view since we use WindowManager for overlays
-        return View(this)
+        // Create a transparent spacer view that will be resized based on actual suggestion bar height
+        val view = View(this).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0  // Start with 0, will update when suggestion bar is measured
+            )
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        }
+        inputViewForSpacing = view
+        return view
     }
     
     private fun handleSuggestionClick(word: String) {
@@ -292,6 +306,26 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                     )
                 }
             }
+            
+            // Measure the ComposeView after it's laid out to get actual height
+            composeView.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    composeView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    
+                    val actualHeight = composeView.height
+                    if (actualHeight > 0) {
+                        measuredSuggestionBarHeight = actualHeight
+                        Log.d(TAG, "Measured suggestion bar height: ${actualHeight}px")
+                        
+                        // Update input view height to match
+                        inputViewForSpacing?.layoutParams?.height = actualHeight
+                        inputViewForSpacing?.requestLayout()
+                        
+                        // Request showing input view to reserve space
+                        requestShowSelf(0)
+                    }
+                }
+            })
 
             // Window parameters for overlay - position at absolute bottom of screen
             val params = WindowManager.LayoutParams(
@@ -310,6 +344,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             windowManager?.addView(composeView, params)
             suggestionBarView = composeView
             isSuggestionBarShowing = true
+            
             Log.d(TAG, "Suggestion bar shown")
         } catch (e: Exception) {
             Log.e(TAG, "Error showing suggestion bar", e)
@@ -332,6 +367,10 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                 }
                 suggestionBarView = null
                 isSuggestionBarShowing = false
+                
+                // Hide input view to remove reserved space
+                requestHideSelf(0)
+                
                 Log.d(TAG, "Suggestion bar hidden")
             }
         } catch (e: Exception) {
@@ -402,8 +441,26 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     }
 
     override fun onEvaluateInputViewShown(): Boolean {
-        // Don't show input view for hardware keyboard
-        return false
+        // Show input view when suggestion bar is visible to reserve space
+        return isSuggestionBarShowing && measuredSuggestionBarHeight > 0
+    }
+    
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        
+        if (isSuggestionBarShowing && measuredSuggestionBarHeight > 0) {
+            // Reserve space at bottom using the actual measured height
+            outInsets.contentTopInsets = measuredSuggestionBarHeight
+            outInsets.visibleTopInsets = measuredSuggestionBarHeight
+            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_CONTENT
+            
+            Log.d(TAG, "onComputeInsets: reserving ${measuredSuggestionBarHeight}px for suggestion bar")
+        } else {
+            // No space reserved
+            outInsets.contentTopInsets = 0
+            outInsets.visibleTopInsets = 0
+            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_CONTENT
+        }
     }
 
     override fun onEvaluateFullscreenMode(): Boolean {
