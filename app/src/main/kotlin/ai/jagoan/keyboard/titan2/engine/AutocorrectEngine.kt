@@ -50,13 +50,16 @@ class AutocorrectEngine(
         maxSuggestions: Int = MAX_SUGGESTIONS,
         contextWords: List<String> = emptyList()
     ): List<AutocorrectSuggestion> {
+        Log.d(TAG, "getSuggestions called for: '$word'")
         if (word.isBlank()) return emptyList()
         
         val lowercaseWord = word.lowercase()
         val suggestions = mutableListOf<AutocorrectSuggestion>()
         
         // If word is already in dictionary, no correction needed
-        if (dictionaryRepository.contains(lowercaseWord)) {
+        val inDict = dictionaryRepository.contains(lowercaseWord)
+        Log.d(TAG, "Word '$word' in dictionary: $inDict")
+        if (inDict) {
             Log.d(TAG, "Word '$word' found in dictionary, no correction needed")
             return emptyList()
         }
@@ -319,9 +322,13 @@ class AutocorrectEngine(
         
         val topSuggestion = suggestions.first()
         
+        Log.d(TAG, "shouldAutoApply check: source=${topSuggestion.source}, confidence=${topSuggestion.confidence}")
+        
         // Only auto-apply contractions - they have very high confidence and are unambiguous
         // All other corrections should be shown in suggestion bar for user to choose
-        return topSuggestion.source == SuggestionSource.CONTRACTION && topSuggestion.confidence >= 0.9f
+        val shouldApply = topSuggestion.source == SuggestionSource.CONTRACTION && topSuggestion.confidence >= 0.9f
+        Log.d(TAG, "shouldAutoApply result: $shouldApply")
+        return shouldApply
     }
     
     /**

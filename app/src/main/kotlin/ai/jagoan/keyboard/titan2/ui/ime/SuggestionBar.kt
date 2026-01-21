@@ -51,10 +51,10 @@ fun SuggestionBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .background(Color(0xFF2C2C2C))
-            .padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.Start,
+            .height(56.dp)
+            .background(Color(0xFF1A1A1A))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Show current word (user can tap to keep it)
@@ -63,25 +63,22 @@ fun SuggestionBar(
                 text = currentWord,
                 isCurrentWord = true,
                 onClick = { onSuggestionClick(currentWord) },
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier
             )
         }
 
         // Show suggestions
         suggestions.take(3).forEach { suggestion ->
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             
             SuggestionChip(
                 text = suggestion.suggestion,
                 isCurrentWord = false,
                 isHighConfidence = suggestion.isHighConfidence(),
                 onClick = { onSuggestionClick(suggestion.suggestion) },
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier
             )
         }
-        
-        // Fill remaining space
-        Spacer(modifier = Modifier.weight(1f))
     }
 }
 
@@ -95,24 +92,24 @@ private fun SuggestionChip(
 ) {
     Box(
         modifier = modifier
-            .heightIn(min = 36.dp)
+            .height(44.dp)
             .background(
                 color = when {
-                    isCurrentWord -> Color(0xFF404040)
-                    isHighConfidence -> Color(0xFF4A90E2)
-                    else -> Color(0xFF505050)
+                    isCurrentWord -> Color(0xFF3A3A3A)
+                    isHighConfidence -> Color(0xFF5BA3F5)
+                    else -> Color(0xFF4A90E2)
                 },
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = if (isHighConfidence) FontWeight.Bold else FontWeight.Normal,
+            fontSize = 18.sp,
+            fontWeight = if (isHighConfidence || !isCurrentWord) FontWeight.Bold else FontWeight.Medium,
             textAlign = TextAlign.Center,
             maxLines = 1
         )

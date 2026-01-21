@@ -25,6 +25,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Autocorrect Test Activity -->
+        <activity
+            android:name=".ui.test.AutocorrectTestActivity"
+            android:exported="true"
+            android:label="Autocorrect Test"
+            android:theme="@style/Theme.JagoanKeyboard">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- Input Method Service -->
         <service
             android:name=".ime.JagoanInputMethodService"

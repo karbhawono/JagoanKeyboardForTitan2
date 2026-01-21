@@ -94,9 +94,11 @@ class AutocorrectManager @Inject constructor(
      * Does NOT clear currentWord - that happens when user commits a choice.
      */
     fun handleSpace(): String? {
+        Log.d(TAG, "handleSpace called, ready: ${isReady()}, currentWord: '${currentWord}'")
         if (!isReady() || currentWord.isEmpty()) return null
         
         val word = currentWord.toString()
+        Log.d(TAG, "Processing word: '$word'")
         
         // Check if word should be ignored
         if (autocorrectEngine.shouldIgnore(word)) {
@@ -123,6 +125,7 @@ class AutocorrectManager @Inject constructor(
         }
         
         val topSuggestion = suggestions.first()
+        Log.d(TAG, "Top suggestion for '$word': '${topSuggestion.suggestion}' (source: ${topSuggestion.source}, confidence: ${topSuggestion.confidence})")
         
         // Auto-apply only contractions (high confidence, unambiguous)
         if (autocorrectEngine.shouldAutoApply(suggestions)) {

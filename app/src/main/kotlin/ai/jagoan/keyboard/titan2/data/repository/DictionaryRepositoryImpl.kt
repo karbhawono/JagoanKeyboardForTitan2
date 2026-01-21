@@ -29,29 +29,33 @@ class DictionaryRepositoryImpl(
     
     override suspend fun loadDictionaries(languages: List<String>): Boolean = withContext(Dispatchers.IO) {
         try {
+            Log.i(TAG, "Starting to load dictionaries for languages: $languages")
             var success = true
             
             // Load each language dictionary
             for (lang in languages) {
                 val filename = "$lang.txt"
+                Log.i(TAG, "Loading dictionary file: $filename")
                 val words = loadDictionaryFile(filename)
                 if (words.isNotEmpty()) {
                     dictionaries[lang] = words
-                    Log.d(TAG, "Loaded $lang dictionary: ${words.size} words")
+                    Log.i(TAG, "✓ Loaded $lang dictionary: ${words.size} words")
                 } else {
-                    Log.w(TAG, "Failed to load $lang dictionary")
+                    Log.e(TAG, "✗ Failed to load $lang dictionary - file empty or not found")
                     success = false
                 }
             }
             
             // Load contractions for English
             if (languages.contains("en")) {
+                Log.i(TAG, "Loading contractions for English...")
                 loadContractions()
             }
             
+            Log.i(TAG, "Dictionary loading complete. Success: $success")
             success
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading dictionaries", e)
+            Log.e(TAG, "CRITICAL ERROR loading dictionaries", e)
             false
         }
     }
@@ -59,16 +63,19 @@ class DictionaryRepositoryImpl(
     private fun loadDictionaryFile(filename: String): Set<String> {
         return try {
             val path = "$DICT_PATH/$filename"
+            Log.i(TAG, "Opening asset file: $path")
             context.assets.open(path).use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                    reader.lineSequence()
+                    val words = reader.lineSequence()
                         .map { it.trim().lowercase() }
                         .filter { it.isNotEmpty() }
                         .toSet()
+                    Log.i(TAG, "Loaded ${words.size} words from $filename")
+                    words
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading dictionary file: $filename", e)
+            Log.e(TAG, "FAILED to load dictionary file: $filename - ${e.message}", e)
             emptySet()
         }
     }
@@ -76,6 +83,7 @@ class DictionaryRepositoryImpl(
     private fun loadContractions() {
         try {
             val path = "$DICT_PATH/$CONTRACTION_FILE"
+            Log.i(TAG, "Loading contractions from: $path")
             context.assets.open(path).use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream)).use { reader ->
                     reader.lineSequence()
@@ -89,9 +97,9 @@ class DictionaryRepositoryImpl(
                         }
                 }
             }
-            Log.d(TAG, "Loaded ${contractions.size} contractions")
+            Log.i(TAG, "✓ Loaded ${contractions.size} contractions")
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading contractions", e)
+            Log.e(TAG, "✗ FAILED to load contractions: ${e.message}", e)
         }
     }
     
@@ -100,11 +108,14 @@ class DictionaryRepositoryImpl(
         
         // Check personal dictionary first
         if (personalDictionary.containsKey(lowercaseWord)) {
+            Log.d(TAG, "Word '$word' found in personal dictionary")
             return true
         }
         
         // Check all loaded dictionaries
-        return dictionaries.values.any { it.contains(lowercaseWord) }
+        val found = dictionaries.values.any { it.contains(lowercaseWord) }
+        Log.d(TAG, "Word '$word' in dictionary: $found (checked ${dictionaries.size} dictionaries)")
+        return found
     }
     
     override fun containsInLanguage(word: String, language: String): Boolean {
