@@ -330,51 +330,20 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                 }
             }
             
-            // Measure the ComposeView after it's laid out to get actual height
-            composeView.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
-                override fun onGlobalLayout() {
-                    composeView.viewTreeObserver.removeOnGlobalLayoutListener(this)
-                    
-                    val actualHeight = composeView.height
-                    if (actualHeight > 0) {
-                        measuredSuggestionBarHeight = actualHeight
-                        Log.d(TAG, "Measured suggestion bar height: ${actualHeight}px")
-                        
-                        // Update input view height to match
-                        inputViewForSpacing?.layoutParams?.height = actualHeight
-                        inputViewForSpacing?.requestLayout()
-                        
-                        // Request showing input view to reserve space
-                        requestShowSelf(0)
-                        
-                        // Suppress extract mode controls
-                        setExtractViewShown(false)
-                        
-                        // Trigger insets computation update
-                        window?.window?.decorView?.post {
-                            onComputeInsets(Insets())
-                        }
-                    }
-                }
-            })
-
-            // Window parameters for overlay - position it within the reserved input view space
-            // Don't add the view yet - wait for measurement first
+            // Window parameters for standalone floating overlay - no input view to avoid IME controls
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                y = 0  // Position at bottom with no offset - will be within reserved space
+                y = 16  // Small offset from bottom
                 this.token = window?.window?.decorView?.windowToken
-                // Prevent system from adding its own IME controls
-                softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
             }
 
             windowManager?.addView(composeView, params)
@@ -403,9 +372,6 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                 }
                 suggestionBarView = null
                 isSuggestionBarShowing = false
-                
-                // Hide input view to remove reserved space
-                requestHideSelf(0)
                 
                 Log.d(TAG, "Suggestion bar hidden")
             }
@@ -450,15 +416,11 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         currentWordState = word
         suggestionsState = suggestions
         
-        // Show or hide suggestion bar overlay based on whether we have content
-        val shouldShow = word.isNotEmpty() || suggestions.isNotEmpty()
-        Log.i(TAG, "updateSuggestions - word: '$word', suggestions: ${suggestions.size}, shouldShow: $shouldShow")
+        // Suggestion bar disabled - autocorrect works silently in background
+        Log.i(TAG, "updateSuggestions - word: '$word', suggestions: ${suggestions.size} (UI disabled)")
         
-        if (shouldShow) {
-            showSuggestionBar()
-        } else {
-            hideSuggestionBar()
-        }
+        // Don't show suggestion bar UI
+        hideSuggestionBar()
     }
     
     private fun updateSuggestionsFromAutocorrect() {
@@ -477,39 +439,13 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     }
 
     override fun onEvaluateInputViewShown(): Boolean {
-        // Show input view when suggestion bar is visible to reserve space
-        return isSuggestionBarShowing && measuredSuggestionBarHeight > 0
+        // Never show input view - prevents system IME controls from appearing
+        return false
     }
     
     override fun onComputeInsets(outInsets: Insets) {
         super.onComputeInsets(outInsets)
-        
-        val inputView = window?.window?.decorView
-        if (isSuggestionBarShowing && measuredSuggestionBarHeight > 0 && inputView != null) {
-            // Calculate the top of the IME content area (from bottom of screen)
-            val inputViewTop = inputView.height - measuredSuggestionBarHeight
-            
-            // Reserve space at bottom using the actual measured height
-            outInsets.contentTopInsets = inputViewTop
-            outInsets.visibleTopInsets = inputViewTop
-            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
-            
-            // Set touchable region to the suggestion bar area only
-            outInsets.touchableRegion.setEmpty()
-            
-            Log.d(TAG, "onComputeInsets: inputViewTop=${inputViewTop}px, height=${measuredSuggestionBarHeight}px")
-        } else {
-            // No space reserved
-            outInsets.contentTopInsets = inputView?.height ?: 0
-            outInsets.visibleTopInsets = inputView?.height ?: 0
-            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
-        }
-        
-        // Suppress extract mode UI that might overlay the suggestion bar
-        if (isFullscreenMode) {
-            outInsets.contentTopInsets = 0
-            outInsets.visibleTopInsets = 0
-        }
+        // No insets modification - floating overlay doesn't reserve space
     }
 
     override fun onEvaluateFullscreenMode(): Boolean {
@@ -523,8 +459,8 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     }
     
     override fun isInputViewShown(): Boolean {
-        // Report that input view is shown to reserve space, but prevent system controls
-        return isSuggestionBarShowing && measuredSuggestionBarHeight > 0
+        // Never report input view as shown - prevents system IME controls
+        return false
     }
 
 
@@ -665,8 +601,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
         val result = keyEventHandler.handleKeyDown(event, currentInputConnection)
         
-        // Update suggestions after key press
-        Log.i(TAG, "onKeyDown - keyCode: $keyCode, updating suggestions...")
+        // Autocorrect runs in background (no UI)
         serviceScope.launch {
             updateSuggestionsFromAutocorrect()
         }
