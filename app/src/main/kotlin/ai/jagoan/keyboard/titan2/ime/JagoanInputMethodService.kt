@@ -323,11 +323,17 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                         
                         // Request showing input view to reserve space
                         requestShowSelf(0)
+                        
+                        // Trigger insets computation update
+                        window?.window?.decorView?.post {
+                            onComputeInsets(Insets())
+                        }
                     }
                 }
             })
 
-            // Window parameters for overlay - position at absolute bottom of screen
+            // Window parameters for overlay - position it within the reserved input view space
+            // Don't add the view yet - wait for measurement first
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -337,7 +343,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                y = 16  // Small offset from bottom to appear above navigation bar
+                y = 0  // Position at bottom with no offset - will be within reserved space
                 this.token = window?.window?.decorView?.windowToken
             }
 
@@ -448,18 +454,25 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     override fun onComputeInsets(outInsets: Insets) {
         super.onComputeInsets(outInsets)
         
-        if (isSuggestionBarShowing && measuredSuggestionBarHeight > 0) {
-            // Reserve space at bottom using the actual measured height
-            outInsets.contentTopInsets = measuredSuggestionBarHeight
-            outInsets.visibleTopInsets = measuredSuggestionBarHeight
-            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_CONTENT
+        val inputView = window?.window?.decorView
+        if (isSuggestionBarShowing && measuredSuggestionBarHeight > 0 && inputView != null) {
+            // Calculate the top of the IME content area (from bottom of screen)
+            val inputViewTop = inputView.height - measuredSuggestionBarHeight
             
-            Log.d(TAG, "onComputeInsets: reserving ${measuredSuggestionBarHeight}px for suggestion bar")
+            // Reserve space at bottom using the actual measured height
+            outInsets.contentTopInsets = inputViewTop
+            outInsets.visibleTopInsets = inputViewTop
+            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
+            
+            // Set touchable region to the suggestion bar area only
+            outInsets.touchableRegion.setEmpty()
+            
+            Log.d(TAG, "onComputeInsets: inputViewTop=${inputViewTop}px, height=${measuredSuggestionBarHeight}px")
         } else {
             // No space reserved
-            outInsets.contentTopInsets = 0
-            outInsets.visibleTopInsets = 0
-            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_CONTENT
+            outInsets.contentTopInsets = inputView?.height ?: 0
+            outInsets.visibleTopInsets = inputView?.height ?: 0
+            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
         }
     }
 
