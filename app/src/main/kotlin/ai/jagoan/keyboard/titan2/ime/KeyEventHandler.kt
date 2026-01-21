@@ -170,6 +170,10 @@ class KeyEventHandler @Inject constructor(
         }
         Log.d(TAG, "insertSymbol: symbol='$symbol', isCurrency=$isCurrency, textToInsert='$textToInsert'")
         inputConnection?.commitText(textToInsert, 1)
+        
+        // Reset autocorrect state after inserting symbol
+        autocorrectManager.reset()
+        
         // Clear one-shot modifiers after inserting
         clearOneShotModifiers()
     }
@@ -785,6 +789,9 @@ class KeyEventHandler @Inject constructor(
                         val currency = currentSettings.preferredCurrency?.takeIf { it.isNotEmpty() }
                             ?: ai.jagoan.keyboard.titan2.util.LocaleUtils.getDefaultCurrencySymbol()
                         inputConnection.commitText("$currency ", 1)
+                        
+                        // Reset autocorrect state after inserting currency
+                        autocorrectManager.reset()
 
                         // Dismiss the symbol picker if it's visible (from first tap)
                         if (isSymPickerVisible) {
@@ -1134,6 +1141,9 @@ class KeyEventHandler @Inject constructor(
                 // Insert the currency symbol with space
                 inputConnection?.commitText("$currency ", 1)
                 Log.d(TAG, "Currency shortcut: $countryCode → $currency inserted")
+                
+                // Reset autocorrect state after inserting currency
+                autocorrectManager.reset()
             } else {
                 // Unknown country code
                 Log.w(TAG, "Currency shortcut: Unknown country code '$countryCode'")
