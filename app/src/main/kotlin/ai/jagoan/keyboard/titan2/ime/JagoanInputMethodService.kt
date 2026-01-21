@@ -293,7 +293,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                 }
             }
 
-            // Window parameters for overlay - position centered at bottom with significant offset for visibility
+            // Window parameters for overlay - position at absolute bottom of screen
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -303,7 +303,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                y = 200  // Increased offset from bottom for better visibility above keyboard area
+                y = 16  // Small offset from bottom to appear above navigation bar
                 this.token = window?.window?.decorView?.windowToken
             }
 
