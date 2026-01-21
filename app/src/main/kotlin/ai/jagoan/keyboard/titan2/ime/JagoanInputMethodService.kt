@@ -238,6 +238,16 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         return view
     }
     
+    override fun onCreateExtractTextView(): View? {
+        // Don't show extract text view - prevents system UI overlays
+        return null
+    }
+    
+    override fun onCreateCandidatesView(): View? {
+        // Don't show candidates view - we use our own suggestion bar
+        return null
+    }
+    
     private fun handleSuggestionClick(word: String) {
         val inputConnection = currentInputConnection ?: return
         val currentWord = autocorrectManager.getCurrentWord()
@@ -339,12 +349,16 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                 y = 0  // Position at bottom with no offset - will be within reserved space
                 this.token = window?.window?.decorView?.windowToken
+                // Prevent system from adding its own IME controls
+                softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
             }
 
             windowManager?.addView(composeView, params)
@@ -474,18 +488,24 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             outInsets.visibleTopInsets = inputView?.height ?: 0
             outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
         }
+        
+        // Suppress extract mode UI that might overlay the suggestion bar
+        if (isFullscreenMode) {
+            outInsets.contentTopInsets = 0
+            outInsets.visibleTopInsets = 0
+        }
     }
 
     override fun onEvaluateFullscreenMode(): Boolean {
-        // Never use fullscreen mode
+        // Never use fullscreen mode - prevents system IME UI overlays
         return false
     }
-
+    
     override fun onShowInputRequested(flags: Int, configChange: Boolean): Boolean {
-        // Always return true to ensure we're active for hardware keyboard
-        // This ensures key events come to us even when there's no soft keyboard shown
+        // Show input view for hardware keyboard to reserve space
         return true
     }
+
 
     override fun onModifierStateChanged(modifiersState: ModifiersState) {
         LazyLog.d(TAG) { "Modifier state changed: shift=${modifiersState.shift}, alt=${modifiersState.alt}, symPicker=${modifiersState.symPickerVisible}" }
