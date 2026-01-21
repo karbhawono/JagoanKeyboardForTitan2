@@ -253,8 +253,15 @@ object SymbolData {
 
     /**
      * Check if a given symbol is a currency symbol
+     * Checks both the currency category and punctuation layer
      */
     fun isCurrencySymbol(symbol: String): Boolean {
-        return currencySymbols.any { it.character == symbol }
+        return currencySymbols.any { it.character == symbol } ||
+               punctuationSymbols.any { it.character == symbol && 
+                   // Known currency symbols in punctuation layer
+                   symbol in listOf("Rp", "$", "€", "£", "¥", "₹", "₽", "₩", "¢", 
+                                   "₪", "₿", "CHF", "kr", "zł", "Kč", "Ft", 
+                                   "lei", "лв", "₺", "R$", "R", "HK$")
+               }
     }
 }
