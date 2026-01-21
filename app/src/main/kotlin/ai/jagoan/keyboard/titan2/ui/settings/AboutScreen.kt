@@ -24,6 +24,7 @@
  * - Updated app name from 'Titan2 Keyboard' to 'Jagoan Keyboard'
  * - Updated branding text and descriptions
  * - Consistent spacing system (8dp, 12dp, 16dp) matching main settings
+ * - Moved "Made with ❤️ for Titan 2" text from footer to copyright card
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -184,7 +185,7 @@ fun AboutScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = stringResource(R.string.about_license_text),
+                        text = "Made with ❤️ for Titan 2",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -202,14 +203,6 @@ fun AboutScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // "Made with ❤️" text
-                Text(
-                    text = "Made with ❤️ for Titan 2",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Center
-                )
-                
                 // Open Source Acknowledgment (Clickable Text)
                 Text(
                     text = buildAnnotatedString {
