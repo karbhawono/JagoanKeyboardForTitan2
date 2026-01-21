@@ -15,10 +15,7 @@ Jagoan Keyboard for Titan 2 is a native Android keyboard application that enhanc
 - 🇮🇩 Default settings optimized for Indonesian users
 - 🌙 Pure black theme for OLED battery efficiency
 
-**Current Version:** 0.3.0  
-**Package Name:** `ai.jagoan.keyboard.titan2`  
-**Target Platform:** Android 14+ (API 34+)  
-**Compile SDK:** Android 15 (API 35)
+**Current Version:** 0.3.1  
 
 ## ✨ Features
 
@@ -413,7 +410,7 @@ Current version format: `versionName = "0.3.0"` + `versionCode = <auto-increment
 - JVM warning about class sharing (non-critical, related to test execution)
 - Gradle 9.0 deprecation warnings (will be addressed in future Gradle updates)
 
-No functional issues reported in current build.
+No functional issues reported in the current build.
 
 ## 📄 License
 
@@ -500,13 +497,6 @@ Contributions are welcome! Please ensure:
     - Keep commits focused and atomic
     - Reference issues when applicable
 
-## 📊 Project Status
-
-**Status:** ✅ Active Development  
-**Current Version:** 0.3.0  
-**Latest Build:** 130+ (auto-incrementing)  
-**Last Updated:** January 2026  
-**Stability:** Stable - No critical issues
 
 ## 🔐 Security
 
