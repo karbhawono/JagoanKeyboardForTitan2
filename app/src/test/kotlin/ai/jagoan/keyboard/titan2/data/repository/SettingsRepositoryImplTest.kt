@@ -69,7 +69,7 @@ class SettingsRepositoryImplTest {
                 doubleSpacePeriod = true,
                 textShortcutsEnabled = true,
                 stickyShift = true,
-                stickyAlt = true,
+                stickyAlt = false,
                 altBackspaceDeleteLine = true,
                 keyRepeatDelay = 400L,
                 keyRepeatRate = 50L,

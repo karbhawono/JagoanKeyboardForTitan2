@@ -46,6 +46,7 @@ object PreferencesKeys {
     val LONG_PRESS_ACCENTS = booleanPreferencesKey("long_press_accents")
     val AUTOCORRECT_ENABLED = booleanPreferencesKey("autocorrect_enabled")
     val AUTOCORRECT_LANGUAGES = stringPreferencesKey("autocorrect_languages")
-    val SHOW_SUGGESTIONS = booleanPreferencesKey("show_suggestions")
+    val SHOW_SUGGESTIONS = booleanPreferencesKey("show_suggestions") // Deprecated, use SUGGESTION_BAR_MODE
+    val SUGGESTION_BAR_MODE = stringPreferencesKey("suggestion_bar_mode")
     val AUTO_FORMAT_NUMBERS = booleanPreferencesKey("auto_format_numbers")
 }

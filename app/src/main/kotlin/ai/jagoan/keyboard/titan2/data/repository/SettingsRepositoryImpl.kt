@@ -29,6 +29,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import ai.jagoan.keyboard.titan2.data.datastore.PreferencesKeys
 import ai.jagoan.keyboard.titan2.domain.model.KeyboardSettings
+import ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode
 import ai.jagoan.keyboard.titan2.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
@@ -48,6 +49,26 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override val settingsFlow: Flow<KeyboardSettings> = dataStore.data
         .map { preferences ->
+            // Migrate from old Boolean setting to new enum
+            val suggestionBarMode = when {
+                preferences.contains(PreferencesKeys.SUGGESTION_BAR_MODE) -> {
+                    when (preferences[PreferencesKeys.SUGGESTION_BAR_MODE]) {
+                        "ALWAYS_SHOW" -> SuggestionBarMode.ALWAYS_SHOW
+                        "OFF" -> SuggestionBarMode.OFF
+                        else -> SuggestionBarMode.AUTO
+                    }
+                }
+                preferences.contains(PreferencesKeys.SHOW_SUGGESTIONS) -> {
+                    // Migrate from old Boolean to new enum - default to ALWAYS_SHOW for better UX
+                    if (preferences[PreferencesKeys.SHOW_SUGGESTIONS] == true) {
+                        SuggestionBarMode.ALWAYS_SHOW
+                    } else {
+                        SuggestionBarMode.OFF
+                    }
+                }
+                else -> SuggestionBarMode.ALWAYS_SHOW
+            }
+            
             KeyboardSettings(
                 autoCapitalize = preferences[PreferencesKeys.AUTO_CAPITALIZE] ?: false,
                 keyRepeatEnabled = preferences[PreferencesKeys.KEY_REPEAT_ENABLED] ?: false,
@@ -55,7 +76,7 @@ class SettingsRepositoryImpl @Inject constructor(
                 doubleSpacePeriod = preferences[PreferencesKeys.DOUBLE_SPACE_PERIOD] ?: true,
                 textShortcutsEnabled = preferences[PreferencesKeys.TEXT_SHORTCUTS_ENABLED] ?: true,
                 stickyShift = preferences[PreferencesKeys.STICKY_SHIFT] ?: true,
-                stickyAlt = preferences[PreferencesKeys.STICKY_ALT] ?: true,
+                stickyAlt = preferences[PreferencesKeys.STICKY_ALT] ?: false,
                 altBackspaceDeleteLine = preferences[PreferencesKeys.ALT_BACKSPACE_DELETE_LINE] ?: true,
                 keyRepeatDelay = preferences[PreferencesKeys.KEY_REPEAT_DELAY] ?: 400L,
                 keyRepeatRate = preferences[PreferencesKeys.KEY_REPEAT_RATE] ?: 50L,
@@ -64,7 +85,7 @@ class SettingsRepositoryImpl @Inject constructor(
                 longPressAccents = preferences[PreferencesKeys.LONG_PRESS_ACCENTS] ?: false,
                 autocorrectEnabled = preferences[PreferencesKeys.AUTOCORRECT_ENABLED] ?: true,
                 autocorrectLanguages = preferences[PreferencesKeys.AUTOCORRECT_LANGUAGES]?.split(",") ?: listOf("en", "id"),
-                showSuggestions = preferences[PreferencesKeys.SHOW_SUGGESTIONS] ?: true,
+                suggestionBarMode = suggestionBarMode,
                 autoFormatNumbers = preferences[PreferencesKeys.AUTO_FORMAT_NUMBERS] ?: true
             )
         }
@@ -99,7 +120,12 @@ class SettingsRepositoryImpl @Inject constructor(
                     val languages = value as List<String>
                     preferences[PreferencesKeys.AUTOCORRECT_LANGUAGES] = languages.joinToString(",")
                 }
-                "showSuggestions" -> preferences[PreferencesKeys.SHOW_SUGGESTIONS] = value as Boolean
+                "suggestionBarMode" -> {
+                    val mode = value as SuggestionBarMode
+                    preferences[PreferencesKeys.SUGGESTION_BAR_MODE] = mode.name
+                    // Remove old key if it exists
+                    preferences.remove(PreferencesKeys.SHOW_SUGGESTIONS)
+                }
                 "autoFormatNumbers" -> preferences[PreferencesKeys.AUTO_FORMAT_NUMBERS] = value as Boolean
             }
         }

@@ -52,6 +52,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -180,6 +181,7 @@ fun SettingsScreen(
                         onAutoFormatNumbersChanged = viewModel::updateAutoFormatNumbers,
                         onSelectedLanguageChanged = viewModel::updateSelectedLanguage,
                         onLongPressAccentsChanged = viewModel::updateLongPressAccents,
+                        onSuggestionBarModeChanged = viewModel::updateSuggestionBarMode,
                         onManageShortcuts = onNavigateToShortcuts,
                         onNavigateToAbout = onNavigateToAbout,
                         onResetToDefaults = viewModel::resetToDefaults
@@ -279,12 +281,14 @@ private fun SettingsContent(
     onAutoFormatNumbersChanged: (Boolean) -> Unit,
     onSelectedLanguageChanged: (String) -> Unit,
     onLongPressAccentsChanged: (Boolean) -> Unit,
+    onSuggestionBarModeChanged: (ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode) -> Unit,
     onManageShortcuts: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onResetToDefaults: () -> Unit
 ) {
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showSuggestionBarDialog by remember { mutableStateOf(false) }
     
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -358,6 +362,18 @@ private fun SettingsContent(
                 description = "Add commas to amounts (50000 → 50,000)",
                 checked = settings.autoFormatNumbers,
                 onCheckedChange = onAutoFormatNumbersChanged,
+                isLast = false
+            )
+            
+            ClickableSettingItem(
+                icon = "💡",
+                title = "Suggestion Bar",
+                description = when(settings.suggestionBarMode) {
+                    ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode.ALWAYS_SHOW -> "Always visible"
+                    ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode.AUTO -> "Show when typing"
+                    ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode.OFF -> "Hidden"
+                },
+                onClick = { showSuggestionBarDialog = true },
                 isLast = false
             )
             
@@ -515,6 +531,17 @@ private fun SettingsContent(
                 showLanguageDialog = false
             },
             onDismiss = { showLanguageDialog = false }
+        )
+    }
+    
+    if (showSuggestionBarDialog) {
+        SuggestionBarModeDialog(
+            currentMode = settings.suggestionBarMode,
+            onModeSelected = { mode ->
+                onSuggestionBarModeChanged(mode)
+                showSuggestionBarDialog = false
+            },
+            onDismiss = { showSuggestionBarDialog = false }
         )
     }
 }
@@ -919,5 +946,90 @@ private fun LanguageSelectionDialog(
                 Text("Close")
             }
         }
+    )
+}
+
+@Composable
+private fun SuggestionBarModeDialog(
+    currentMode: ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode,
+    onModeSelected: (ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val modes = listOf(
+        Triple(ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode.ALWAYS_SHOW, "Always Show", "Bar stays visible at all times"),
+        Triple(ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode.AUTO, "Auto", "Show when typing or suggestions available"),
+        Triple(ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode.OFF, "Off", "Never show suggestion bar")
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Suggestion Bar Mode",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold
+                )
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                modes.forEach { (mode, label, description) ->
+                    Card(
+                        onClick = { onModeSelected(mode) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (mode == currentMode) 
+                                SettingsDesignTokens.JagoanGreen.copy(alpha = 0.2f)
+                            else 
+                                SettingsDesignTokens.SurfaceDark
+                        ),
+                        shape = RoundedCornerShape(SettingsDesignTokens.CornerRadiusMedium)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (mode == currentMode) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = SettingsDesignTokens.JagoanGreen,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontWeight = if (mode == currentMode) FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    color = if (mode == currentMode) 
+                                        SettingsDesignTokens.JagoanGreen
+                                    else 
+                                        SettingsDesignTokens.OnSurface
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SettingsDesignTokens.OnSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = SettingsDesignTokens.JagoanGreen)
+            }
+        },
+        containerColor = SettingsDesignTokens.BackgroundDark,
+        shape = RoundedCornerShape(SettingsDesignTokens.CornerRadiusLarge)
     )
 }

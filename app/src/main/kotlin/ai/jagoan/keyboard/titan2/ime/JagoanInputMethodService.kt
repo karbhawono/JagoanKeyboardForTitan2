@@ -59,9 +59,11 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import ai.jagoan.keyboard.titan2.R
+import ai.jagoan.keyboard.titan2.domain.model.KeyboardSettings
 import ai.jagoan.keyboard.titan2.domain.model.KeyEventResult
 import ai.jagoan.keyboard.titan2.domain.model.ModifierState
 import ai.jagoan.keyboard.titan2.domain.model.ModifiersState
+import ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode
 import ai.jagoan.keyboard.titan2.domain.model.SymbolCategory
 import ai.jagoan.keyboard.titan2.domain.repository.SettingsRepository
 import ai.jagoan.keyboard.titan2.ui.ime.SymbolPickerOverlay
@@ -93,14 +95,13 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     lateinit var autocorrectManager: ai.jagoan.keyboard.titan2.engine.AutocorrectManager
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    
-    // Suggestion bar for autocorrect
-    private var suggestionBarView: ComposeView? = null
-    private var isSuggestionBarShowing = false
-    private var currentWordState by mutableStateOf("")
-    private var suggestionsState by mutableStateOf<List<ai.jagoan.keyboard.titan2.domain.model.AutocorrectSuggestion>>(emptyList())
 
-    // Track whether we're in any input field to block capacitive touch
+    // Suggestion bar as IME input view
+    private var suggestionBarView: ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView? = null
+    private var currentSuggestionBarMode = SuggestionBarMode.AUTO
+    private var currentSettingsAutocorrectEnabled = true
+
+    // Input state tracking
     private var isInputActive = false
     private var lastKeyEventTime = 0L
 
@@ -121,10 +122,6 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
     // Lifecycle owner for Compose in service
     private val lifecycleOwner = ServiceLifecycleOwner()
-    
-    // Input view and suggestion bar height tracking
-    private var inputViewForSpacing: View? = null
-    private var measuredSuggestionBarHeight: Int = 0
 
     companion object {
         private const val TAG = "Titan2IME"
@@ -164,7 +161,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
 
-        // Initialize window manager for symbol picker
+        // Initialize window manager for symbol picker and suggestion bar
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         
         // Initialize notification debouncer (100ms delay to batch rapid updates)
@@ -200,6 +197,34 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
                 if (settings.autocorrectEnabled && settings.autocorrectLanguages.isNotEmpty()) {
                     autocorrectManager.initialize(settings.autocorrectLanguages)
                 }
+                
+                // Update suggestion bar settings
+                currentSuggestionBarMode = settings.suggestionBarMode
+                currentSettingsAutocorrectEnabled = settings.autocorrectEnabled
+                
+                // Update suggestion bar based on mode
+                when (settings.suggestionBarMode) {
+                    SuggestionBarMode.ALWAYS_SHOW -> {
+                        // Always show, even if empty
+                        if (isInputActive) {
+                            updateSuggestionsFromAutocorrect()
+                        } else {
+                            updateSuggestions("", emptyList())
+                        }
+                    }
+                    SuggestionBarMode.AUTO -> {
+                        // Show when typing
+                        if (settings.autocorrectEnabled && isInputActive) {
+                            updateSuggestionsFromAutocorrect()
+                        } else {
+                            updateSuggestions("", emptyList())
+                        }
+                    }
+                    SuggestionBarMode.OFF -> {
+                        // Never show
+                        updateSuggestions("", emptyList())
+                    }
+                }
             }
         }
 
@@ -226,16 +251,15 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     }
 
     override fun onCreateInputView(): View {
-        // Create a transparent spacer view that will be resized based on actual suggestion bar height
-        val view = View(this).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0  // Start with 0, will update when suggestion bar is measured
-            )
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        // Create suggestion bar as IME input view
+        suggestionBarView = ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView(this).apply {
+            setOnSuggestionClickListener { word ->
+                handleSuggestionClick(word)
+            }
+            // Initialize with empty state in ALWAYS_SHOW mode to ensure bar is visible
+            updateSuggestions("", emptyList(), currentSuggestionBarMode)
         }
-        inputViewForSpacing = view
-        return view
+        return suggestionBarView!!
     }
     
     override fun onCreateExtractTextView(): View? {
@@ -244,7 +268,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     }
     
     override fun onCreateCandidatesView(): View? {
-        // Don't show candidates view - we use our own suggestion bar
+        // Don't use candidates view - using WindowManager overlay instead
         return null
     }
     
@@ -262,6 +286,8 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         val inputConnection = currentInputConnection ?: return
         val currentWord = autocorrectManager.getCurrentWord()
         
+        LazyLog.d(TAG) { "Suggestion clicked: $word, current word: $currentWord" }
+        
         if (currentWord.isNotEmpty()) {
             // Delete the current word
             inputConnection.deleteSurroundingText(currentWord.length, 0)
@@ -273,179 +299,59 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         // Commit the word to context and clear suggestions
         autocorrectManager.commitWord(word)
         updateSuggestions("", emptyList())
-        
-        // Hide suggestion bar after selection
-        hideSuggestionBar()
     }
-    
-    /**
-     * Show suggestion bar as WindowManager overlay
-     */
-    private fun showSuggestionBar() = PerformanceMonitor.measure("suggestion_bar_show") {
-        try {
-            Log.d(TAG, "showSuggestionBar called")
-            
-            // Suppress extract mode UI controls
-            setExtractViewShown(false)
-            
-            // Don't show if symbol picker is visible
-            if (isSymbolPickerShowing) {
-                Log.d(TAG, "Symbol picker is showing, not showing suggestion bar")
-                return@measure
-            }
-            
-            // Always remove existing overlay first to ensure clean state
-            if (isSuggestionBarShowing) {
-                try {
-                    suggestionBarView?.let { view ->
-                        windowManager?.removeView(view)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error removing old suggestion bar overlay", e)
-                }
-                suggestionBarView = null
-                isSuggestionBarShowing = false
-            }
 
-            // Check window token before creating
-            val token = window?.window?.decorView?.windowToken
-            if (token == null) {
-                Log.e(TAG, "No window token available for suggestion bar")
-                return@measure
-            }
-
-            val composeView = ComposeView(this).apply {
-                setViewTreeLifecycleOwner(lifecycleOwner)
-                setViewTreeSavedStateRegistryOwner(lifecycleOwner)
-
-                setContent {
-                    ai.jagoan.keyboard.titan2.ui.ime.SuggestionBar(
-                        currentWord = currentWordState,
-                        suggestions = suggestionsState,
-                        onSuggestionClick = { selectedWord ->
-                            Log.d(TAG, "Suggestion selected: $selectedWord")
-                            handleSuggestionClick(selectedWord)
-                        }
-                    )
-                }
-            }
-            
-            // Window parameters for standalone floating overlay - no input view to avoid IME controls
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                y = 16  // Small offset from bottom
-                this.token = window?.window?.decorView?.windowToken
-            }
-
-            windowManager?.addView(composeView, params)
-            suggestionBarView = composeView
-            isSuggestionBarShowing = true
-            
-            Log.d(TAG, "Suggestion bar shown")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error showing suggestion bar", e)
-        }
-    }
-    
-    /**
-     * Hide suggestion bar overlay
-     */
-    private fun hideSuggestionBar() {
-        try {
-            if (isSuggestionBarShowing) {
-                Log.d(TAG, "hideSuggestionBar called")
-                suggestionBarView?.let { view ->
-                    try {
-                        windowManager?.removeView(view)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Error removing suggestion bar", e)
-                    }
-                }
-                suggestionBarView = null
-                isSuggestionBarShowing = false
-                
-                Log.d(TAG, "Suggestion bar hidden")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error hiding suggestion bar", e)
-        }
-    }
-    
-    /**
-     * Remove suggestion bar overlay (cleanup)
-     */
-    private fun removeSuggestionBar() {
-        try {
-            if (!isSuggestionBarShowing && suggestionBarView == null) {
-                return
-            }
-            
-            Log.d(TAG, "Removing suggestion bar overlay")
-            val view = suggestionBarView
-            if (view != null) {
-                try {
-                    if (view is ComposeView) {
-                        view.disposeComposition()
-                    }
-                    val parent = view.parent
-                    if (parent != null) {
-                        windowManager?.removeView(view)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error during suggestion bar removal", e)
-                }
-            }
-            suggestionBarView = null
-            isSuggestionBarShowing = false
-            Log.d(TAG, "Suggestion bar removed")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error removing suggestion bar overlay", e)
-        }
-    }
-    
     private fun updateSuggestions(word: String, suggestions: List<ai.jagoan.keyboard.titan2.domain.model.AutocorrectSuggestion>) {
-        currentWordState = word
-        suggestionsState = suggestions
+        LazyLog.d(TAG) { "updateSuggestions - word: '$word', suggestions: ${suggestions.size}" }
         
-        // Suggestion bar disabled - autocorrect works silently in background
-        Log.i(TAG, "updateSuggestions - word: '$word', suggestions: ${suggestions.size} (UI disabled)")
+        // Update the suggestion bar view with current mode
+        suggestionBarView?.updateSuggestions(word, suggestions, currentSuggestionBarMode)
         
-        // Don't show suggestion bar UI
-        hideSuggestionBar()
+        // Update whether to show input view based on mode
+        val shouldShow = when (currentSuggestionBarMode) {
+            SuggestionBarMode.ALWAYS_SHOW -> isInputActive
+            SuggestionBarMode.AUTO -> isInputActive && (word.length >= 2 || suggestions.isNotEmpty())
+            SuggestionBarMode.OFF -> false
+        }
+        
+        // Tell system to show/hide input view
+        updateInputViewShown()
+        LazyLog.d(TAG) { "updateInputViewShown called, shouldShow=$shouldShow, mode=$currentSuggestionBarMode" }
     }
     
     private fun updateSuggestionsFromAutocorrect() {
+        Log.d(TAG, "updateSuggestionsFromAutocorrect called")
         val currentWord = autocorrectManager.getCurrentWord()
+        Log.d(TAG, "Current word from autocorrect: '$currentWord'")
         
         if (currentWord.isEmpty()) {
+            Log.d(TAG, "Current word is empty, clearing suggestions")
             updateSuggestions("", emptyList())
             return
         }
         
         // Get suggestions from autocorrect manager
         val suggestions = autocorrectManager.getSuggestions(currentWord, maxSuggestions = 3)
+        Log.d(TAG, "Got ${suggestions.size} suggestions for '$currentWord': ${suggestions.map { it.suggestion }}")
         
         // Update UI
         updateSuggestions(currentWord, suggestions)
     }
 
     override fun onEvaluateInputViewShown(): Boolean {
-        // Never show input view - prevents system IME controls from appearing
-        return false
+        // Show IME input view based on suggestion bar mode
+        val shouldShow = when (currentSuggestionBarMode) {
+            SuggestionBarMode.ALWAYS_SHOW -> isInputActive
+            SuggestionBarMode.AUTO -> isInputActive
+            SuggestionBarMode.OFF -> false
+        }
+        LazyLog.d(TAG) { "onEvaluateInputViewShown: $shouldShow (mode=$currentSuggestionBarMode, active=$isInputActive)" }
+        return shouldShow
     }
     
     override fun onComputeInsets(outInsets: Insets) {
         super.onComputeInsets(outInsets)
-        // No insets modification - floating overlay doesn't reserve space
+        // Let system handle insets for IME input view
     }
 
     override fun onEvaluateFullscreenMode(): Boolean {
@@ -565,6 +471,10 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             val hasAutoCorrectionDisabled = (info.inputType and android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT) == 0
             Log.i(TAG, "Input type - class: $typeClass, variation: $typeVariation, " +
                     "noSuggestions: $hasNoSuggestions, autoCorrectionDisabled: $hasAutoCorrectionDisabled")
+            
+            // For physical keyboards, always respect the suggestion bar mode setting
+            // Physical keyboard typing behavior is controlled by suggestionBarMode
+            LazyLog.d(TAG) { "Suggestion bar mode: $currentSuggestionBarMode, autocorrect enabled: $currentSettingsAutocorrectEnabled" }
         }
 
         // Block capacitive touch for ANY input field
@@ -573,6 +483,11 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
         // Update the key event handler with current editor info
         keyEventHandler.updateEditorInfo(attribute)
+        
+        // Set up suggestion update callback
+        keyEventHandler.onSuggestionUpdateNeeded = {
+            updateSuggestionsFromAutocorrect()
+        }
 
         // Reset autocorrect state for new input field
         autocorrectManager.reset()
@@ -592,14 +507,56 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         // Clear suggestions and hide suggestion bar
         updateSuggestions("", emptyList())
     }
+    
+    override fun onUpdateSelection(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int,
+        candidatesStart: Int,
+        candidatesEnd: Int
+    ) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        
+        // Track text changes for suggestion updates
+        if (currentSuggestionBarMode == SuggestionBarMode.OFF || !isInputActive) {
+            return
+        }
+        
+        // Get current text before cursor to extract the current word
+        val ic = currentInputConnection ?: return
+        val textBeforeCursor = ic.getTextBeforeCursor(100, 0)?.toString() ?: ""
+        
+        // Extract the current word (everything after last space/punctuation)
+        val currentWord = textBeforeCursor.takeLastWhile { !it.isWhitespace() && it.isLetterOrDigit() }
+        
+        Log.d(TAG, "onUpdateSelection: currentWord='$currentWord'")
+        
+        // Update autocorrect manager with current word
+        if (currentWord != autocorrectManager.getCurrentWord()) {
+            autocorrectManager.reset()
+            currentWord.forEach { char ->
+                if (char.isLetter() || char == '\'') {
+                    autocorrectManager.addCharacter(char)
+                }
+            }
+        }
+        
+        // Update suggestions
+        updateSuggestionsFromAutocorrect()
+    }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         event ?: return super.onKeyDown(keyCode, event)
+        
+        Log.d(TAG, "onKeyDown: keyCode=$keyCode, event=$event")
 
         // Track key event time for capacitive touch blocking
         lastKeyEventTime = System.currentTimeMillis()
 
+        Log.d(TAG, "Calling keyEventHandler.handleKeyDown")
         val result = keyEventHandler.handleKeyDown(event, currentInputConnection)
+        Log.d(TAG, "handleKeyDown returned: $result")
         
         // Autocorrect runs in background (no UI)
         serviceScope.launch {
@@ -683,8 +640,11 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         try {
             Log.d(TAG, "showSymbolPicker called")
             
-            // Hide suggestion bar when showing symbol picker
-            hideSuggestionBar()
+            // Hide candidates view when showing symbol picker
+            setCandidatesViewShown(false)
+            
+            // Get WindowManager for symbol picker overlay
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
             
             // Always remove existing overlay first to ensure clean state
             if (isSymbolPickerShowing) {
@@ -806,12 +766,12 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
         // Clean up autocorrect manager
         autocorrectManager.cleanup()
-        
-        // Remove suggestion bar if attached
-        removeSuggestionBar()
 
         // Remove symbol picker if attached
         removeSymbolPicker()
+        
+        // Clean up suggestion bar reference
+        suggestionBarView = null
 
         // Update lifecycle
         lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
