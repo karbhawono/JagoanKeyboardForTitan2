@@ -51,6 +51,16 @@ object SymbolData {
 
     val categories = SymbolCategory.entries.toList()
 
+    // Set of all currency symbols for fast O(1) lookup
+    private val currencySymbolSet = setOf(
+        // Major currencies
+        "$", "€", "£", "¥", "₹", "₽", "₩", "¢", "₪", "₿", "Rp",
+        // Additional currencies
+        "₫", "₱", "฿", "₴", "₦", "₲", "₵", "₡", "₸", "₺",
+        // Other currency formats
+        "CHF", "kr", "zł", "Kč", "Ft", "lei", "лв", "R$", "R", "HK$"
+    )
+
     private val punctuationSymbols = listOf(
         // Row 1 (Q-P): 10 symbols
         Symbol(";", "Semicolon"),
@@ -252,16 +262,11 @@ object SymbolData {
     fun getDefaultCategory(): SymbolCategory = SymbolCategory.PUNCTUATION
 
     /**
-     * Check if a given symbol is a currency symbol
-     * Checks both the currency category and punctuation layer
+     * Check if a given symbol is a currency symbol.
+     * Uses a fast set-based lookup for O(1) performance.
+     * Returns true for any symbol in the currency set, regardless of which category it appears in.
      */
     fun isCurrencySymbol(symbol: String): Boolean {
-        return currencySymbols.any { it.character == symbol } ||
-               punctuationSymbols.any { it.character == symbol && 
-                   // Known currency symbols in punctuation layer
-                   symbol in listOf("Rp", "$", "€", "£", "¥", "₹", "₽", "₩", "¢", 
-                                   "₪", "₿", "CHF", "kr", "zł", "Kč", "Ft", 
-                                   "lei", "лв", "₺", "R$", "R", "HK$")
-               }
+        return symbol in currencySymbolSet
     }
 }

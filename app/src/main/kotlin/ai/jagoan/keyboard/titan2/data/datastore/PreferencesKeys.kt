@@ -47,4 +47,5 @@ object PreferencesKeys {
     val AUTOCORRECT_ENABLED = booleanPreferencesKey("autocorrect_enabled")
     val AUTOCORRECT_LANGUAGES = stringPreferencesKey("autocorrect_languages")
     val SHOW_SUGGESTIONS = booleanPreferencesKey("show_suggestions")
+    val AUTO_FORMAT_NUMBERS = booleanPreferencesKey("auto_format_numbers")
 }

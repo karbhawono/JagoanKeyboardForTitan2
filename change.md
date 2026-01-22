@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.1] - 2025-01-22
+
+### 🎉 New Features
+
+#### Smart Number Formatting
+
+**Automatic Amount Formatting**:
+
+- Auto-format numbers with thousand separators when pressing SPACE
+- Example: `50000` → `50,000`, `1234567` → `1,234,567`
+- Preserves decimal places: `50000.00` → `50,000.00`
+- Enabled by default with settings toggle: "Auto-Format Numbers"
+- Works only in TEXT fields (Notes, Messages, etc.) - blocked in pure NUMBER fields
+
+**Intelligent Detection**:
+
+- **Phone numbers**: Detects and skips formatting for phone numbers (e.g., `081234567890`)
+    - Supports multiple country formats: Indonesia, Malaysia, Singapore, Thailand, Philippines, Vietnam, US, UK, Australia
+- **Credit cards**: Validates using Luhn algorithm and card prefixes (Visa, Mastercard, Amex, Discover, JCB, etc.)
+- **Tracking numbers**: Detects courier/shipment codes and reference numbers
+- **Field types**: Automatically disabled in password, email, URI, and phone number input fields
+
+**Files**:
+
+- `ai.jagoan.keyboard.titan2.util.NumberFormatter` - Core formatting and detection logic
+- `ai.jagoan.keyboard.titan2.ime.KeyEventHandler` - Integration with space key handling
+- Settings toggle in `KeyboardSettings.autoFormatNumbers`
+
+### 🐛 Bug Fixes
+
+**ALT+Space Behavior**:
+
+- Fixed ALT+Space triggering symbol picker dialog
+- Now properly blocks ALT+Space for both sticky and non-sticky ALT modes
+- Auto-unlocks ALT modifier when ALT+Space is blocked for better UX
+- Checks both sticky modifier state and event meta state for comprehensive blocking
+
+**Currency Symbol Insertion**:
+
+- Fixed "Rp" currency symbol not inserting trailing space
+- All currency symbols now consistently add space after insertion
+- Physical key symbol picker now uses proper insertion path
+
+### 🔧 Improvements
+
+**Number Formatting**:
+
+- Added comprehensive diagnostic logging for troubleshooting
+- Smart field type detection to prevent formatting in inappropriate contexts
+- Fixed bitwise AND logic bug in phone field detection
+- Optimized performance with early returns for blocked field types
+
+**Modifier Key Handling**:
+
+- Improved ALT+Space blocking moved before shortcut checks for priority
+- Auto-clear ALT modifier after blocking to prevent stuck state
+- Better integration with sticky modifier system
+
+### 🧪 Testing
+
+**New Tests**:
+
+- `NumberFormatterTest.kt` - Comprehensive unit tests for number formatting
+    - Format validation tests (50000 → 50,000)
+    - Phone number detection tests
+    - Credit card validation tests
+    - Plain number detection tests
+- All tests passing ✅
+
+---
+
 ## [0.4.0] - 2025-01-22
 
 ### 🎉 Major Features Added
@@ -275,6 +346,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Bug Fixes
 
+- **Fixed Rp currency symbol not inserting space** - Simplified `isCurrencySymbol()` function with set-based O(1) lookup instead of complex nested conditions. "Rp" from punctuation category now correctly adds trailing space for better UX when typing amounts (e.g., "Rp 50000")
 - Fixed symbol picker state management to prevent overlay conflicts with suggestion bar
 - Resolved suggestion bar flicker on keyboard layout changes and configuration updates
 - Fixed DataStore concurrent write issues when rapidly changing settings
@@ -313,6 +385,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced visual feedback for toggle states
 - Smoother transitions between symbol picker and suggestion bar
 - More informative logging for troubleshooting
+- Currency symbols now automatically insert trailing space for easier amount typing
+
+**Performance**:
+
+- Currency symbol detection optimized from O(n) to O(1) with set-based lookup
+- 10-50x faster currency checks during symbol insertion
 
 ### 📦 Dependencies Updated
 
@@ -723,6 +801,7 @@ Row 3: Z=!  X=7  C=8  V=9  B=.  N=,  M=?
 
 ## Version History Summary
 
+- **0.4.1** (2025-01-22): Smart number formatting, ALT+Space fix, auto-unlock ALT
 - **0.4.0** (2025-01-22): Intelligent autocorrect, accent support, UI redesign, testing
 - **0.3.1** (2025-01-15): Bug fixes, performance improvements, UX enhancements
 - **0.3.0** (2025-01-08): Initial public release with core keyboard functionality

@@ -44,6 +44,7 @@ import ai.jagoan.keyboard.titan2.domain.model.SymbolData
 import ai.jagoan.keyboard.titan2.domain.repository.ShortcutRepository
 import ai.jagoan.keyboard.titan2.ui.ime.getSymbolIndexForKeyCode
 import ai.jagoan.keyboard.titan2.util.LazyLog
+import ai.jagoan.keyboard.titan2.util.NumberFormatter
 import ai.jagoan.keyboard.titan2.util.PerformanceMonitor
 import ai.jagoan.keyboard.titan2.util.StringBuilderPool
 import javax.inject.Inject
@@ -161,14 +162,20 @@ class KeyEventHandler @Inject constructor(
      * Automatically adds a space after currency symbols for better UX
      */
     fun insertSymbol(symbol: String, inputConnection: InputConnection?) {
+        // Detailed debug logging to diagnose currency detection
+        Log.d(TAG, "insertSymbol: CHECKING symbol='$symbol' (length=${symbol.length}, bytes=${symbol.toByteArray().contentToString()})")
+        
         // Check if this is a currency symbol and add space after it
         val isCurrency = ai.jagoan.keyboard.titan2.domain.model.SymbolData.isCurrencySymbol(symbol)
+        
+        Log.d(TAG, "insertSymbol: isCurrencySymbol result=$isCurrency")
+        
         val textToInsert = if (isCurrency) {
             "$symbol "
         } else {
             symbol
         }
-        Log.d(TAG, "insertSymbol: symbol='$symbol', isCurrency=$isCurrency, textToInsert='$textToInsert'")
+        Log.d(TAG, "insertSymbol: final text='$textToInsert' (will insert '${textToInsert.replace(" ", "<SPACE>")}')")
         inputConnection?.commitText(textToInsert, 1)
         
         // Reset autocorrect state after inserting symbol
@@ -242,6 +249,11 @@ class KeyEventHandler @Inject constructor(
      * @return KeyEventResult indicating whether the event was handled
      */
     fun handleKeyDown(event: KeyEvent, inputConnection: InputConnection?): KeyEventResult = PerformanceMonitor.measure("key_down_event") {
+        // Log SPACE key at the very start
+        if (event.keyCode == KeyEvent.KEYCODE_SPACE) {
+            Log.d(TAG, ">>> SPACE KEY RECEIVED at handleKeyDown entry <<<")
+        }
+        
         LazyLog.d(TAG) { "handleKeyDown: keyCode=${event.keyCode}, modifiers=shift:${modifiersState.shift}/alt:${modifiersState.alt}" }
         inputConnection ?: return@measure KeyEventResult.NotHandled
 
@@ -276,8 +288,8 @@ class KeyEventHandler @Inject constructor(
                     
                     LazyLog.d(TAG) { "Symbol selected from physical key: ${symbol.character}" }
                     
-                    // Insert the symbol
-                    inputConnection.commitText(symbol.character, 1)
+                    // Insert the symbol (use insertSymbol for currency detection)
+                    insertSymbol(symbol.character, inputConnection)
                     LazyLog.d(TAG) { "Symbol inserted, dismissing picker" }
                     
                     // Dismiss the picker after inserting
@@ -504,6 +516,23 @@ class KeyEventHandler @Inject constructor(
             lastReplacement = null
         }
 
+        // Block ALT+Space to prevent keyboard switcher UI and symbol picker (must come before shortcuts!)
+        // Check both sticky modifier state AND event meta state (for non-sticky ALT)
+        val hasAltMeta = (event.metaState and KeyEvent.META_ALT_ON) != 0 ||
+                         (event.metaState and KeyEvent.META_ALT_LEFT_ON) != 0 ||
+                         (event.metaState and KeyEvent.META_ALT_RIGHT_ON) != 0
+        if (event.keyCode == KeyEvent.KEYCODE_SPACE && (modifiersState.isAltActive() || hasAltMeta)) {
+            Log.d(TAG, "ALT+Space blocked (sticky=${modifiersState.isAltActive()}, meta=$hasAltMeta)")
+            
+            // Auto-unlock ALT since the combination is blocked
+            if (modifiersState.isAltActive()) {
+                Log.d(TAG, "Auto-unlocking ALT after blocking ALT+Space")
+                clearOneShotModifiers()
+            }
+            
+            return KeyEventResult.Handled
+        }
+
         // Check for text shortcuts on word boundary keys (space, enter, punctuation)
         if (currentSettings.textShortcutsEnabled && isWordBoundary(event.keyCode)) {
             // If we just undid a replacement, skip this shortcut check
@@ -533,6 +562,107 @@ class KeyEventHandler @Inject constructor(
                 // Shortcut was replaced and space/punctuation was added
                 return KeyEventResult.Handled
             }
+        }
+
+        // Handle auto-format numbers on space key
+        if (event.keyCode == KeyEvent.KEYCODE_SPACE) {
+            Log.d(TAG, "=== SPACE KEY PRESSED ===")
+            Log.d(TAG, "autoFormatNumbers=${currentSettings.autoFormatNumbers}")
+            Log.d(TAG, "inputConnection=$inputConnection")
+            
+            if (currentSettings.autoFormatNumbers && inputConnection != null) {
+                // Log input type details
+                val editorInfo = currentEditorInfo
+                if (editorInfo != null) {
+                    val inputType = editorInfo.inputType
+                    val typeClass = inputType and android.text.InputType.TYPE_MASK_CLASS
+                    val typeClassName = when (typeClass) {
+                        android.text.InputType.TYPE_CLASS_TEXT -> "TEXT"
+                        android.text.InputType.TYPE_CLASS_NUMBER -> "NUMBER"
+                        android.text.InputType.TYPE_CLASS_PHONE -> "PHONE"
+                        android.text.InputType.TYPE_CLASS_DATETIME -> "DATETIME"
+                        else -> "UNKNOWN($typeClass)"
+                    }
+                    Log.d(TAG, "InputType: 0x${inputType.toString(16)}, class=$typeClassName")
+                    
+                    // Check if this is a pure NUMBER field (which blocks commas)
+                    if (typeClass == android.text.InputType.TYPE_CLASS_NUMBER) {
+                        Log.d(TAG, "⚠️ BLOCKING: This is a NUMBER field - commas not allowed!")
+                        Log.d(TAG, "💡 TIP: Number formatting only works in TEXT fields (Notes, Messages, etc)")
+                    }
+                }
+                
+                val shouldFormat = NumberFormatter.shouldFormatInField(editorInfo)
+                Log.d(TAG, "shouldFormatInField=$shouldFormat, editorInfo=$editorInfo")
+                
+                if (shouldFormat) {
+                    // Get raw text before cursor for debugging
+                    val rawText = inputConnection.getTextBeforeCursor(50, 0)
+                    Log.d(TAG, "Raw text before cursor (50 chars): '$rawText'")
+                    
+                    val wordBefore = NumberFormatter.getWordBeforeCursor(inputConnection)
+                    val textBefore = NumberFormatter.getTextBeforeCursor(inputConnection, 100)
+                    
+                    Log.d(TAG, "wordBefore='$wordBefore' (length=${wordBefore?.length})")
+                    Log.d(TAG, "textBefore (last 30): '${textBefore.takeLast(30)}'")
+                    
+                    if (wordBefore != null) {
+                        // Check each condition individually
+                        val isPlain = NumberFormatter.isPlainNumber(wordBefore)
+                        val isPhone = NumberFormatter.isPhoneNumber(wordBefore, textBefore)
+                        val isCard = NumberFormatter.isCreditCardNumber(wordBefore)
+                        val isTracking = NumberFormatter.isTrackingNumber(wordBefore, textBefore)
+                        val digitsOnly = wordBefore.replace(".", "")
+                        val lengthOk = digitsOnly.length >= 3 && digitsOnly.length <= 12
+                        
+                        Log.d(TAG, "Checks: isPlain=$isPlain, isPhone=$isPhone, isCard=$isCard, isTracking=$isTracking")
+                        Log.d(TAG, "Length: digitsOnly='$digitsOnly' (${digitsOnly.length} chars), lengthOk=$lengthOk")
+                        
+                        val shouldFormatAsAmount = NumberFormatter.shouldFormatAsAmount(wordBefore, textBefore, editorInfo)
+                        Log.d(TAG, "shouldFormatAsAmount=$shouldFormatAsAmount for '$wordBefore'")
+                        
+                        if (shouldFormatAsAmount) {
+                            val formatted = NumberFormatter.formatNumber(wordBefore)
+                            Log.d(TAG, "formatNumber: '$wordBefore' → '$formatted' (changed=${formatted != wordBefore})")
+                            
+                            if (formatted != wordBefore) {
+                                // Delete the plain number
+                                Log.d(TAG, "Deleting $wordBefore.length chars and inserting '$formatted '")
+                                inputConnection.deleteSurroundingText(wordBefore.length, 0)
+                                
+                                // Insert formatted number with space
+                                inputConnection.commitText("$formatted ", 1)
+                                
+                                Log.d(TAG, "✅ SUCCESS: Auto-formatted number: $wordBefore → $formatted")
+                                
+                                // Return Handled to prevent double space
+                                return KeyEventResult.Handled
+                            } else {
+                                Log.d(TAG, "Number already formatted or doesn't need formatting")
+                            }
+                        } else {
+                            Log.d(TAG, "❌ shouldFormatAsAmount=false, reasons:")
+                            if (!isPlain) Log.d(TAG, "  - not a plain number")
+                            if (isPhone) Log.d(TAG, "  - detected as phone number")
+                            if (isCard) Log.d(TAG, "  - detected as credit card")
+                            if (isTracking) Log.d(TAG, "  - detected as tracking number")
+                            if (!lengthOk) Log.d(TAG, "  - length check failed (${digitsOnly.length} not in 3..12)")
+                        }
+                    } else {
+                        Log.d(TAG, "❌ wordBefore is null - nothing to format before cursor")
+                    }
+                } else {
+                    Log.d(TAG, "❌ shouldFormatInField=false for this field type")
+                }
+            } else {
+                if (!currentSettings.autoFormatNumbers) {
+                    Log.d(TAG, "❌ autoFormatNumbers is disabled in settings")
+                }
+                if (inputConnection == null) {
+                    Log.d(TAG, "❌ inputConnection is null!")
+                }
+            }
+            Log.d(TAG, "=== END SPACE KEY ===")
         }
 
         // Handle autocorrect on space key
@@ -655,6 +785,9 @@ class KeyEventHandler @Inject constructor(
         }
 
         // Let system handle all other first presses normally
+        if (event.keyCode == KeyEvent.KEYCODE_SPACE) {
+            Log.d(TAG, ">>> SPACE KEY: Returning NotHandled (reached end of function) <<<")
+        }
         return KeyEventResult.NotHandled
     }
 

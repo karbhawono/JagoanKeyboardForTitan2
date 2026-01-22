@@ -64,7 +64,8 @@ class SettingsRepositoryImpl @Inject constructor(
                 longPressAccents = preferences[PreferencesKeys.LONG_PRESS_ACCENTS] ?: false,
                 autocorrectEnabled = preferences[PreferencesKeys.AUTOCORRECT_ENABLED] ?: true,
                 autocorrectLanguages = preferences[PreferencesKeys.AUTOCORRECT_LANGUAGES]?.split(",") ?: listOf("en", "id"),
-                showSuggestions = preferences[PreferencesKeys.SHOW_SUGGESTIONS] ?: true
+                showSuggestions = preferences[PreferencesKeys.SHOW_SUGGESTIONS] ?: true,
+                autoFormatNumbers = preferences[PreferencesKeys.AUTO_FORMAT_NUMBERS] ?: true
             )
         }
         .distinctUntilChanged() // Only emit when settings actually change
@@ -99,6 +100,7 @@ class SettingsRepositoryImpl @Inject constructor(
                     preferences[PreferencesKeys.AUTOCORRECT_LANGUAGES] = languages.joinToString(",")
                 }
                 "showSuggestions" -> preferences[PreferencesKeys.SHOW_SUGGESTIONS] = value as Boolean
+                "autoFormatNumbers" -> preferences[PreferencesKeys.AUTO_FORMAT_NUMBERS] = value as Boolean
             }
         }
     }

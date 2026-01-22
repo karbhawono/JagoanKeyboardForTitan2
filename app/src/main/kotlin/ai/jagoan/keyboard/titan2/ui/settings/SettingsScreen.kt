@@ -177,6 +177,7 @@ fun SettingsScreen(
                         onStickyAltChanged = viewModel::updateStickyAlt,
                         onAltBackspaceDeleteLineChanged = viewModel::updateAltBackspaceDeleteLine,
                         onPreferredCurrencyChanged = viewModel::updatePreferredCurrency,
+                        onAutoFormatNumbersChanged = viewModel::updateAutoFormatNumbers,
                         onSelectedLanguageChanged = viewModel::updateSelectedLanguage,
                         onLongPressAccentsChanged = viewModel::updateLongPressAccents,
                         onManageShortcuts = onNavigateToShortcuts,
@@ -275,6 +276,7 @@ private fun SettingsContent(
     onStickyAltChanged: (Boolean) -> Unit,
     onAltBackspaceDeleteLineChanged: (Boolean) -> Unit,
     onPreferredCurrencyChanged: (String?) -> Unit,
+    onAutoFormatNumbersChanged: (Boolean) -> Unit,
     onSelectedLanguageChanged: (String) -> Unit,
     onLongPressAccentsChanged: (Boolean) -> Unit,
     onManageShortcuts: () -> Unit,
@@ -347,6 +349,15 @@ private fun SettingsContent(
                 description = "Expand abbreviations (lm→I'm)",
                 checked = settings.textShortcutsEnabled,
                 onCheckedChange = onTextShortcutsChanged,
+                isLast = false
+            )
+            
+            SettingItemWithIcon(
+                icon = "🔢",
+                title = "Auto-Format Numbers",
+                description = "Add commas to amounts (50000 → 50,000)",
+                checked = settings.autoFormatNumbers,
+                onCheckedChange = onAutoFormatNumbersChanged,
                 isLast = false
             )
             

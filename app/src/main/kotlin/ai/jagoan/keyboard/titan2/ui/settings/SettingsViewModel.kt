@@ -124,6 +124,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateAutoFormatNumbers(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateSetting("autoFormatNumbers", enabled)
+        }
+    }
+
     fun resetToDefaults() {
         viewModelScope.launch {
             settingsRepository.resetToDefaults()
