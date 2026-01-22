@@ -26,6 +26,7 @@ package ai.jagoan.keyboard.titan2.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode
 import ai.jagoan.keyboard.titan2.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -127,6 +128,12 @@ class SettingsViewModel @Inject constructor(
     fun updateAutoFormatNumbers(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.updateSetting("autoFormatNumbers", enabled)
+        }
+    }
+
+    fun updateSuggestionBarMode(mode: SuggestionBarMode) {
+        viewModelScope.launch {
+            settingsRepository.updateSetting("suggestionBarMode", mode)
         }
     }
 

@@ -17,6 +17,7 @@
 package ai.jagoan.keyboard.titan2.ui.ime
 
 import ai.jagoan.keyboard.titan2.domain.model.AutocorrectSuggestion
+import ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -32,44 +33,56 @@ import android.widget.TextView
  * Non-Compose suggestion bar for autocorrect
  */
 class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
-    
+
     private val container: LinearLayout
     private var onSuggestionClickListener: ((String) -> Unit)? = null
-    
+
     init {
-        setBackgroundColor(Color.parseColor("#2C2C2C"))
+        setBackgroundColor(Color.parseColor("#000000"))
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            dpToPx(48f)
+            dpToPx(25f)
         )
-        
+
         container = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
-            setPadding(dpToPx(8f), 0, dpToPx(8f), 0)
+            // Add extra left padding to avoid overlapping with down arrow (60dp left)
+            // Add extra right padding to avoid overlapping with keyboard icon (60dp right)
+            setPadding(dpToPx(60f), 0, dpToPx(60f), 0)
         }
-        
+
         addView(container)
     }
-    
-    fun setSuggestions(currentWord: String, suggestions: List<AutocorrectSuggestion>) {
+
+    fun setSuggestions(currentWord: String, suggestions: List<AutocorrectSuggestion>, mode: SuggestionBarMode = SuggestionBarMode.AUTO) {
         container.removeAllViews()
-        
-        if (currentWord.isBlank() && suggestions.isEmpty()) {
-            visibility = View.GONE
-            return
+
+        // In ALWAYS_SHOW mode, keep bar visible even when empty
+        if (mode == SuggestionBarMode.ALWAYS_SHOW) {
+            visibility = View.VISIBLE
+            if (currentWord.isBlank() && suggestions.isEmpty()) {
+                // Show placeholder with empty space to keep bar visible and maintain structure
+                container.addView(createPlaceholderText())
+                return
+            }
+        } else {
+            // AUTO and OFF modes - hide when empty
+            if (currentWord.isBlank() && suggestions.isEmpty()) {
+                visibility = View.GONE
+                return
+            }
+            visibility = View.VISIBLE
         }
-        
-        visibility = View.VISIBLE
-        
+
         // Add current word chip
         if (currentWord.isNotBlank()) {
             container.addView(createSuggestionChip(currentWord, isCurrentWord = true))
         }
-        
+
         // Add suggestion chips
         suggestions.take(3).forEach { suggestion ->
             container.addView(createSuggestionChip(
@@ -79,11 +92,15 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
             ))
         }
     }
-    
+
+    fun updateSuggestions(currentWord: String, suggestions: List<AutocorrectSuggestion>, mode: SuggestionBarMode = SuggestionBarMode.AUTO) {
+        setSuggestions(currentWord, suggestions, mode)
+    }
+
     fun setOnSuggestionClickListener(listener: (String) -> Unit) {
         onSuggestionClickListener = listener
     }
-    
+
     private fun createSuggestionChip(
         text: String,
         isCurrentWord: Boolean,
@@ -91,34 +108,63 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
     ): View {
         return TextView(context).apply {
             this.text = text
-            textSize = 16f
+            textSize = 10f
             setTextColor(Color.WHITE)
             typeface = if (isHighConfidence) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-            gravity = Gravity.CENTER
-            
+            gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
+
             val bgColor = when {
                 isCurrentWord -> Color.parseColor("#404040")
                 isHighConfidence -> Color.parseColor("#4A90E2")
                 else -> Color.parseColor("#505050")
             }
             setBackgroundColor(bgColor)
-            
-            val padding = dpToPx(12f)
-            setPadding(padding, dpToPx(8f), padding, dpToPx(8f))
-            
+
+            val horizontalPadding = dpToPx(10f)
+            val verticalPadding = dpToPx(6f)
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             ).apply {
                 marginEnd = dpToPx(8f)
+                gravity = Gravity.CENTER_VERTICAL
             }
-            
+
+            // Ensure single line to prevent text wrapping
+            setSingleLine(true)
+
             setOnClickListener {
                 onSuggestionClickListener?.invoke(text)
             }
         }
     }
-    
+
+    private fun createPlaceholderText(): View {
+        return TextView(context).apply {
+            text = " " // Empty space instead of text
+            textSize = 10f
+            setTextColor(Color.parseColor("#808080"))
+            typeface = Typeface.DEFAULT
+            gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
+
+            val horizontalPadding = dpToPx(10f)
+            val verticalPadding = dpToPx(6f)
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ).apply {
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            setSingleLine(true)
+            isClickable = false
+        }
+    }
+
     private fun dpToPx(dp: Float): Int {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,

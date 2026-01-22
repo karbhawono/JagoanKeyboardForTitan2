@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.2] - 2025-01-23
+
+### 🎉 New Features
+
+#### Suggestion Bar (IME Controls)
+
+**Always-Visible Suggestion Bar**:
+
+- Added suggestion bar that displays autocorrect suggestions and current word
+- **Always visible by default** when keyboard is active (ALWAYS_SHOW mode)
+- Compact **25dp height** to minimize content displacement (50% smaller than original 48dp)
+- Shows empty placeholder when no suggestions available to maintain visibility
+- Three display modes configurable in settings:
+    - **ALWAYS_SHOW** (default): Always visible, shows empty bar when no suggestions
+    - **AUTO**: Shows only when typing with 2+ characters or when suggestions exist
+    - **OFF**: Never shows
+
+**Optimized Design**:
+
+- Compact sizing optimized for minimal space usage:
+    - Height: 25dp
+    - Suggestion text: 12px
+    - Horizontal padding: 10dp
+    - Vertical padding: 6dp
+- Black background with white text for clear contrast
+- High-confidence suggestions shown in bold with blue background
+- Current word shown in gray background
+- Touch-friendly suggestion chips with proper spacing
+- Avoids overlapping with keyboard controls (60dp padding on left/right)
+
+**User Experience**:
+
+- Provides consistent IME control visibility
+- Easy one-tap suggestion selection
+- Visual feedback for autocorrect availability
+- Settings migration: Users upgrading from old boolean setting get ALWAYS_SHOW mode by default
+
+**Files**:
+
+- `ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView` - Suggestion bar UI component
+- `ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode` - Display mode enum
+- Integration in `JagoanInputMethodService` for lifecycle management
+- Settings toggle in `KeyboardSettings.suggestionBarMode`
+
+---
+
 ## [0.4.1] - 2025-01-22
 
 ### 🎉 New Features

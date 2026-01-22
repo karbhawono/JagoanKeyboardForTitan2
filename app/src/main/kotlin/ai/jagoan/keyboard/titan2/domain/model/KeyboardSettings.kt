@@ -24,6 +24,15 @@
 package ai.jagoan.keyboard.titan2.domain.model
 
 /**
+ * Display mode for the suggestion bar
+ */
+enum class SuggestionBarMode {
+    ALWAYS_SHOW,  // Always visible regardless of content
+    AUTO,         // Show when typing (current behavior)
+    OFF           // Never show
+}
+
+/**
  * Domain model representing keyboard settings
  */
 data class KeyboardSettings(
@@ -33,7 +42,7 @@ data class KeyboardSettings(
     val doubleSpacePeriod: Boolean = true,
     val textShortcutsEnabled: Boolean = true,
     val stickyShift: Boolean = true,
-    val stickyAlt: Boolean = true,
+    val stickyAlt: Boolean = false,
     val altBackspaceDeleteLine: Boolean = true, // Alt+Backspace deletes entire line
     val keyRepeatDelay: Long = 400L, // milliseconds
     val keyRepeatRate: Long = 50L,   // milliseconds
@@ -42,6 +51,6 @@ data class KeyboardSettings(
     val longPressAccents: Boolean = false, // Long-press shows accent variants instead of uppercase
     val autocorrectEnabled: Boolean = true, // Enable autocorrect on space
     val autocorrectLanguages: List<String> = listOf("en", "id"), // Languages for autocorrect dictionaries
-    val showSuggestions: Boolean = true, // Show suggestion bar with autocorrect suggestions
+    val suggestionBarMode: SuggestionBarMode = SuggestionBarMode.ALWAYS_SHOW, // Suggestion bar display mode
     val autoFormatNumbers: Boolean = true // Auto-format numbers with thousand separators when pressing space
 )

@@ -97,6 +97,9 @@ class KeyEventHandler @Inject constructor(
     private var isSymPickerVisible: Boolean = false
     private var currentSymbolCategory: SymbolCategory = SymbolCategory.PUNCTUATION
 
+    // Suggestion update callback
+    var onSuggestionUpdateNeeded: (() -> Unit)? = null
+
     // Currency shortcut tracking (SYM+C+CountryCode)
     private var currencyShortcutMode = false
     private var currencyCountryCode = StringBuilder()
@@ -491,10 +494,14 @@ class KeyEventHandler @Inject constructor(
             } else {
                 // Not undoing, just handle backspace for autocorrect tracking
                 autocorrectManager.handleBackspace()
+                // Update suggestions after backspace
+                Log.d(TAG, "Backspace pressed, invoking suggestion update callback")
+                onSuggestionUpdateNeeded?.invoke()
             }
         }
 
         // Track characters for autocorrect
+        Log.d(TAG, "handleKeyDown: Processing key ${event.keyCode}, callback null? ${onSuggestionUpdateNeeded == null}")
         if (event.keyCode >= KeyEvent.KEYCODE_A && event.keyCode <= KeyEvent.KEYCODE_Z) {
             // If we have a current word that wasn't committed (user kept typing after space showed suggestions)
             // commit it now as they're starting a new word
@@ -505,10 +512,18 @@ class KeyEventHandler @Inject constructor(
             }
             
             val char = ('a' + (event.keyCode - KeyEvent.KEYCODE_A))
+            Log.d(TAG, "Adding character to autocorrect: $char")
             autocorrectManager.addCharacter(char)
+            // Trigger suggestion update after adding character
+            Log.d(TAG, "Letter typed: $char, callback is null? ${onSuggestionUpdateNeeded == null}, invoking...")
+            onSuggestionUpdateNeeded?.invoke()
+            Log.d(TAG, "Callback invoked (if not null)")
         } else if (event.keyCode == KeyEvent.KEYCODE_APOSTROPHE) {
             // Track apostrophes for contractions (e.g., don't, can't)
             autocorrectManager.addCharacter('\'')
+            // Trigger suggestion update after adding character
+            Log.d(TAG, "Apostrophe typed, invoking suggestion update callback")
+            onSuggestionUpdateNeeded?.invoke()
         }
 
         // Clear tracking on any non-backspace key
