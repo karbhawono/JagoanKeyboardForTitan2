@@ -15,8 +15,6 @@ Jagoan Keyboard for Titan 2 is a native Android keyboard application that enhanc
 - 🇮🇩 Default settings optimized for Indonesian users
 - 🌙 Pure black theme for OLED battery efficiency
 
-**Current Version:** 0.3.1  
-
 ## ✨ Features
 
 ### Smart Symbol Picker
@@ -496,7 +494,6 @@ Contributions are welcome! Please ensure:
     - Use conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, etc.
     - Keep commits focused and atomic
     - Reference issues when applicable
-
 
 ## 🔐 Security
 
