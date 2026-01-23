@@ -7,12 +7,15 @@
  * Modifications:
  * - Renamed package from com.titan2keyboard.ime to ai.jagoan.keyboard.titan2.ime
  * - Updated domain model imports
- * - Added SYM+C currency shortcut feature for quick currency symbol insertion
+ * - Added SYM+C+C currency shortcut feature for quick currency symbol insertion
  * - Added getCurrencyForCountryCode() function supporting 50+ country codes
  * - Added currency shortcut mode tracking (currencyShortcutMode, currencyCountryCode, currencyModeStartTime)
  * - Added handleCurrencyShortcut() function for processing 2-letter country codes
  * - Added clearCurrencyShortcutMode() function for mode cleanup
  * - Modified insertSymbol() to automatically add space after currency symbols
+ * - Added category shortcut feature: SYM+P/C/M/A/E/O to show specific symbol category overlays
+ * - Added getCategoryForKeyCode() function to map keys to symbol categories
+ * - Added category shortcut state tracking (categoryShortcutActive, lastCategoryShown)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,8 +98,13 @@ class KeyEventHandler @Inject constructor(
     private var lastSymTapTime: Long = 0L
     private var onSymKeyPressed: (() -> Unit)? = null
     private var onSymPickerDismiss: (() -> Unit)? = null
+    private var onSymPickerShow: ((SymbolCategory) -> Unit)? = null
     private var isSymPickerVisible: Boolean = false
     private var currentSymbolCategory: SymbolCategory = SymbolCategory.PUNCTUATION
+
+    // Category shortcut tracking (SYM+P/C/M/A/E/O)
+    private var categoryShortcutActive = false
+    private var lastCategoryShown: SymbolCategory? = null
 
     // Suggestion update callback
     var onSuggestionUpdateNeeded: (() -> Unit)? = null
@@ -113,7 +121,7 @@ class KeyEventHandler @Inject constructor(
     private var viClipboard: String = ""
     private var viModeHandler: android.os.Handler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    // Currency shortcut tracking (SYM+C+CountryCode)
+    // Currency shortcut tracking (SYM+C+C+CountryCode)
     private var currencyShortcutMode = false
     private var currencyCountryCode = StringBuilder()
     private var currencyModeStartTime = 0L
@@ -179,6 +187,13 @@ class KeyEventHandler @Inject constructor(
      */
     fun setSymPickerDismissCallback(callback: () -> Unit) {
         onSymPickerDismiss = callback
+    }
+
+    /**
+     * Set the callback for showing the symbol picker with a specific category
+     */
+    fun setSymPickerShowCallback(callback: (SymbolCategory) -> Unit) {
+        onSymPickerShow = callback
     }
 
     /**
@@ -309,9 +324,25 @@ class KeyEventHandler @Inject constructor(
             clearCurrencyShortcutMode()
         }
 
-        // Handle currency shortcut mode (SYM+C+CountryCode)
+        // Handle currency shortcut mode (SYM+C+C+CountryCode)
         if (currencyShortcutMode) {
             return handleCurrencyShortcut(event, inputConnection)
+        }
+
+        // Handle category shortcuts when SYM is held (SYM+P/C/M/A/E/O)
+        if (symKeyDownTime > 0 && !isSymPickerVisible) {
+            val category = getCategoryForKeyCode(event.keyCode)
+            
+            if (category != null) {
+                Log.d(TAG, "Category shortcut detected: SYM+${event.keyCode} -> ${category.displayName}")
+                
+                // Show category overlay
+                onSymPickerShow?.invoke(category)
+                categoryShortcutActive = true
+                lastCategoryShown = category
+                
+                return KeyEventResult.Handled
+            }
         }
 
         // Handle symbol picker interaction
@@ -349,15 +380,21 @@ class KeyEventHandler @Inject constructor(
                 LazyLog.d(TAG) { "Key ${event.keyCode} is not a letter key, not handling" }
             }
             
-            // Check if this is SYM+C to enter currency mode
-            if (event.keyCode == KeyEvent.KEYCODE_C) {
+            // Check if this is second C press (SYM+C+C) to enter currency mode
+            if (event.keyCode == KeyEvent.KEYCODE_C && 
+                lastCategoryShown == SymbolCategory.CURRENCY && 
+                categoryShortcutActive) {
+                
+                Log.d(TAG, "Currency shortcut mode activated: SYM+C+C (second C)")
+                
+                // Enter currency country code mode
+                onSymPickerDismiss?.invoke()
                 currencyShortcutMode = true
                 currencyModeStartTime = event.eventTime
                 currencyCountryCode.clear()
+                categoryShortcutActive = false
+                lastCategoryShown = null
                 
-                Log.d(TAG, "Currency shortcut mode activated: SYM+C")
-                
-                onSymPickerDismiss?.invoke()
                 return KeyEventResult.Handled
             }
             
@@ -1006,6 +1043,13 @@ class KeyEventHandler @Inject constructor(
             }
             KeyEvent.KEYCODE_SYM, 253 -> { // 253 is AGUI_SYM on Titan 2 hardware
                 Log.d(TAG, "SYM key UP detected, keyCode=${event.keyCode}")
+                
+                // Clear category shortcut state when SYM is released
+                if (categoryShortcutActive) {
+                    categoryShortcutActive = false
+                    lastCategoryShown = null
+                }
+                
                 // If in currency mode and Sym is released, cancel it
                 if (currencyShortcutMode) {
                     Log.d(TAG, "Sym released during currency mode, cancelling")
@@ -1024,9 +1068,9 @@ class KeyEventHandler @Inject constructor(
 
                     Log.d(TAG, "SYM UP: pressDuration=$pressDuration, isLongPress=$isLongPress, isDoubleTap=$isDoubleTap, callback=${onSymKeyPressed != null}")
 
-                    if (isDoubleTap || isLongPress) {
-                        // Double-tap or long-press: insert preferred currency symbol
-                        Log.d(TAG, "SYM: Double-tap or long-press, inserting currency")
+                    if (isDoubleTap) {
+                        // Double-tap: insert preferred currency symbol
+                        Log.d(TAG, "SYM: Double-tap, inserting currency")
                         val currency = currentSettings.preferredCurrency?.takeIf { it.isNotEmpty() }
                             ?: ai.jagoan.keyboard.titan2.util.LocaleUtils.getDefaultCurrencySymbol()
                         inputConnection.commitText("$currency ", 1)
@@ -1041,13 +1085,16 @@ class KeyEventHandler @Inject constructor(
 
                         // Reset tap time to prevent triple-tap issues
                         lastSymTapTime = 0L
-                    } else {
-                        // Short press: show picker or cycle category
+                    } else if (!isLongPress) {
+                        // Short press only: show picker or cycle category
                         Log.d(TAG, "SYM: Short press, invoking callback")
                         onSymKeyPressed?.invoke()
                         Log.d(TAG, "SYM: Callback invoked")
                         // Update last tap time for double-tap detection
                         lastSymTapTime = event.eventTime
+                    } else {
+                        // Long press: do nothing (feature reserved for future use)
+                        Log.d(TAG, "SYM: Long press, ignoring (no action)")
                     }
                     symKeyDownTime = 0L
                     return KeyEventResult.Handled
@@ -1657,6 +1704,22 @@ class KeyEventHandler @Inject constructor(
         currencyCountryCode.clear()
         currencyModeStartTime = 0L
         Log.d(TAG, "Currency shortcut mode cleared")
+    }
+
+    /**
+     * Get symbol category for a given key code (for category shortcuts)
+     * Maps P/C/M/A/E/O to their respective categories
+     */
+    private fun getCategoryForKeyCode(keyCode: Int): SymbolCategory? {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_P -> SymbolCategory.PUNCTUATION
+            KeyEvent.KEYCODE_C -> SymbolCategory.CURRENCY
+            KeyEvent.KEYCODE_M -> SymbolCategory.MATH
+            KeyEvent.KEYCODE_A -> SymbolCategory.ARROWS
+            KeyEvent.KEYCODE_E -> SymbolCategory.EMOJI
+            KeyEvent.KEYCODE_O -> SymbolCategory.MISC  // "Other"
+            else -> null
+        }
     }
 
     /**

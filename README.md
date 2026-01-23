@@ -381,19 +381,22 @@ Current version format: `versionName = "0.3.0"` + `versionCode = <auto-increment
 ### Basic Usage
 
 1. **Symbol Picker** - Press SYM key to open symbol picker
-2. **Category Cycling** - Press SYM repeatedly to cycle through categories
-3. **Insert Symbol** - Press Q-P or A-L to insert corresponding symbol
-4. **Quick Currency** - Double-tap SYM for Rupiah (Rp) symbol
-5. **Auto-Dismiss** - Symbol picker closes after inserting a symbol
+2. **Category Shortcuts** - Press SYM+P/C/M/A/E/O for direct category access
+3. **Category Cycling** - Press SYM repeatedly to cycle through categories
+4. **Insert Symbol** - Press Q-P or A-L to insert corresponding symbol
+5. **Quick Currency** - Double-tap SYM for preferred currency symbol (e.g., Rp)
+6. **Auto-Dismiss** - Symbol picker closes after inserting a symbol
 
 ### Symbol Categories
 
-- **Punctuation** - `;` `[` `]` `{` `}` `<` `>` `|` `\` `&` `^` `%` `~` etc.
-- **Currency** - Rp $ € £ ¥ ₹ ₩ ₽ ₪ ₫ ฿ etc.
-- **Math** - ± × ÷ ≠ ≈ ≤ ≥ ∞ √ ∑ ∫ π etc.
-- **Arrows** - ← → ↑ ↓ ↔ ⇐ ⇒ ⇑ ⇓ ⇔ etc.
-- **Emoji** - 😀 😂 ❤️ 👍 🎉 ✅ ⚠️ 🔥 etc.
-- **Miscellaneous** - © ® ™ § ¶ † ‡ • ° etc.
+Access directly with shortcuts or cycle through with SYM key:
+
+- **Punctuation (SYM+P)** - `;` `[` `]` `{` `}` `<` `>` `|` `\` `&` `^` `%` `~` etc.
+- **Currency (SYM+C)** - Rp $ € £ ¥ ₹ ₩ ₽ ₪ ₫ ฿ etc.
+- **Math (SYM+M)** - ± × ÷ ≠ ≈ ≤ ≥ ∞ √ ∑ ∫ π etc.
+- **Arrows (SYM+A)** - ← → ↑ ↓ ↔ ⇐ ⇒ ⇑ ⇓ ⇔ etc.
+- **Emoji (SYM+E)** - 😀 😂 ❤️ 👍 🎉 ✅ ⚠️ 🔥 etc.
+- **Other (SYM+O)** - © ® ™ § ¶ † ‡ • ° etc.
 
 ### Physical Keyboard Shortcuts
 
@@ -402,6 +405,7 @@ Current version format: `versionName = "0.3.0"` + `versionCode = <auto-increment
 - **Alt + Key** - Access symbol layer (see keyboard mapping)
 - **Alt + Backspace** - Delete entire line (if enabled)
 - **Double Space** - Auto-insert period (if enabled)
+- **SYM+C+C+Country Code** - Insert currency by country code (e.g., SYM+C+C+ID → Rp)
 
 ## 🐛 Known Issues
 

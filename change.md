@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.4] - 2025-01-24
+
+### 🎉 New Features
+
+#### Direct Category Access with SYM Shortcuts
+
+**Instant symbol category access without cycling:**
+
+| Shortcut  | Category    | Example Symbols                  |
+| --------- | ----------- | -------------------------------- |
+| **SYM+P** | Punctuation | `;` `[` `]` `{` `}` `\|` `^` `~` |
+| **SYM+C** | Currency    | $ € £ ¥ ₹ Rp ₩ ₽                 |
+| **SYM+M** | Math        | ± × ÷ ≠ ≈ ≤ ≥ ∞ √ π              |
+| **SYM+A** | Arrows      | ← → ↑ ↓ ↔ ⇐ ⇒ ⇔                  |
+| **SYM+E** | Emoji       | 😀 😂 ❤️ 👍 🎉 ✅ 🔥             |
+| **SYM+O** | Other       | © ® ™ § ¶ † • ° ★                |
+
+**Benefits:**
+
+- Jump directly to needed category without cycling through 6 categories
+- Mnemonic shortcuts: **P**unctuation, **C**urrency, **M**ath, **A**rrows, **E**moji, **O**ther
+- Faster workflow for power users
+
+#### Currency Country Code Shortcut Updated
+
+**Changed from SYM+C+Code to SYM+C+C+Code:**
+
+- **SYM+C** → Shows currency overlay
+- **SYM+C+C+[CountryCode]** → Inserts currency by country code
+- Examples:
+    - **SYM+C+C+ID** → "Rp " (Indonesia)
+    - **SYM+C+C+US** → "$ " (USA)
+    - **SYM+C+C+GB** → "£ " (Great Britain)
+    - **SYM+C+C+EU** → "€ " (European Union)
+- All 50+ country codes still supported
+
+#### SYM Key Behavior Changes
+
+| Action     | Old Behavior      | New Behavior                             |
+| ---------- | ----------------- | ---------------------------------------- |
+| Single tap | Show/cycle picker | ✅ Show/cycle picker (unchanged)         |
+| Double tap | Insert currency   | ✅ Insert preferred currency (unchanged) |
+| Long press | Insert currency   | ⛔ **No action** (reserved for future)   |
+
+**Reasons for changes:**
+
+- Long-press disabled to reserve gesture for future features
+- Prevents accidental picker appearance when holding SYM too long
+- Double-tap still provides quick currency insertion
+
+### 🎨 UI Improvements
+
+- Renamed "Misc" category to "**Other**" for better clarity
+- Category headers now show in overlay for better context
+
+### 📝 Documentation
+
+- Updated FEATURES.md with complete category shortcuts reference
+- Updated README.md usage guide with shortcut table
+- Added CATEGORY_SHORTCUTS_IMPLEMENTATION.md with technical details
+
+---
+
 ## [0.4.3] - 2025-01-23
 
 ### 🎉 New Features

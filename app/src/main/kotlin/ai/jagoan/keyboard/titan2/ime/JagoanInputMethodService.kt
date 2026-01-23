@@ -185,6 +185,11 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             hideSymbolPicker()
         }
 
+        // Set up Sym picker show callback (for category shortcuts)
+        keyEventHandler.setSymPickerShowCallback { category ->
+            showSymbolPicker(category)
+        }
+
         // Initialize autocorrect
         serviceScope.launch {
             autocorrectManager.initialize(listOf("en", "id"))
@@ -641,10 +646,18 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
     /**
      * Show the symbol picker overlay
+     * @param category Optional category to show directly. If null, shows current category.
      */
-    private fun showSymbolPicker() = PerformanceMonitor.measure("symbol_picker_show") {
+    private fun showSymbolPicker(category: SymbolCategory? = null) = PerformanceMonitor.measure("symbol_picker_show") {
         try {
-            Log.d(TAG, "showSymbolPicker called")
+            Log.d(TAG, "showSymbolPicker called with category: $category")
+            
+            // Set category if provided
+            if (category != null) {
+                symbolPickerCategory = category
+                keyEventHandler.setSymbolCategory(category)
+                Log.d(TAG, "Category set to: $category")
+            }
             
             // Hide candidates view when showing symbol picker
             setCandidatesViewShown(false)

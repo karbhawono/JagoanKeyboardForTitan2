@@ -33,7 +33,7 @@ enum class SymbolCategory(val displayName: String) {
     MATH("Math"),
     ARROWS("Arrows"),
     EMOJI("Emoji"),
-    MISC("Misc")
+    MISC("Other")
 }
 
 /**
