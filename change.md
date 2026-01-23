@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.4.2] - 2025-01-23
+## [0.4.3] - 2025-01-23
 
 ### 🎉 New Features
 
@@ -95,13 +95,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Suggestions sorted by priority: current word, high confidence (bold), normal
 - Vi mode indicator integrated on the right side (60dp padding area)
 
-**Keyboard Gesture Compatibility**:
-
-- Suggestion bar only appears when there's actual text or suggestions
-- Hidden when input field is empty to allow Titan 2 keyboard gestures to work
-- Seamless integration - appears when typing starts, disappears when field is cleared
-- Preserves full keyboard gesture functionality on Unihertz Titan 2
-
 ### 🐛 Bug Fixes
 
 **Keyboard Gesture Support**:
@@ -110,12 +103,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Suggestion bar now only shows when typing to preserve gesture functionality
 - Modified ALWAYS_SHOW mode to display only when text or suggestions are present
 - Ensures keyboard gestures work when input field is empty or inactive
+- Reverted touch pass-through attempts that didn't work on Titan 2
+- Solution: Hide IME control when input field is empty to allow gestures
+
+**Files Modified**:
+
+- `ai.jagoan.keyboard.titan2.ime.JagoanInputMethodService` - Updated visibility logic for gesture compatibility
+- `ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView` - Removed unused touch pass-through code
+
+---
+
+## [0.4.2] - 2025-01-23
+
+### 🎉 New Features
+
+#### Suggestion Bar (IME Controls)
+
+**Smart Suggestion Bar**:
+
+- Added suggestion bar that displays autocorrect suggestions and current word
+- Compact **25dp height** to minimize content displacement (50% smaller than original 48dp)
+- Three display modes configurable in settings:
+    - **ALWAYS_SHOW** (default): Shows when typing with text or suggestions present
+    - **AUTO**: Shows only when typing with 2+ characters or when suggestions exist
+    - **OFF**: Never shows
+
+**Optimized Design**:
+
+- Compact sizing optimized for minimal space usage:
+    - Height: 25dp
+    - Suggestion text: 16px (configurable)
+    - Horizontal padding: 10dp
+    - Vertical padding: 6dp
+- Black background with white text for clear contrast
+- Centered suggestion chips for better visual balance
+- All chips have consistent black background with white text
+- Suggestions sorted by priority: current word, high confidence (bold), normal
+- Touch-friendly suggestion chips with proper spacing
+- Avoids overlapping with keyboard controls (60dp padding on left/right)
+
+**User Experience**:
+
+- Shows suggestions when needed without blocking keyboard gestures
+- Easy one-tap suggestion selection
+- Visual feedback for autocorrect availability
+- Settings migration: Users upgrading from old boolean setting get ALWAYS_SHOW mode by default
 
 **Files**:
 
-- `ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView` - Suggestion bar UI component with Vi indicator
+- `ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView` - Suggestion bar UI component
 - `ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode` - Display mode enum
-- `ai.jagoan.keyboard.titan2.ime.JagoanInputMethodService` - Updated visibility logic for gesture compatibility
+- `ai.jagoan.keyboard.titan2.ime.JagoanInputMethodService` - IME lifecycle management
 - Settings toggle in `KeyboardSettings.suggestionBarMode`
 
 ---
