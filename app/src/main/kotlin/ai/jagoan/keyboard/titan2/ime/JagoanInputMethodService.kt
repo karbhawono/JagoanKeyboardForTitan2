@@ -161,6 +161,11 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
 
+        // Set up Vi mode listener
+        keyEventHandler.setViModeListener { viMode ->
+            suggestionBarView?.updateViMode(viMode)
+        }
+
         // Initialize window manager for symbol picker and suggestion bar
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         
@@ -256,12 +261,13 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             setOnSuggestionClickListener { word ->
                 handleSuggestionClick(word)
             }
-            // Initialize with empty state in ALWAYS_SHOW mode to ensure bar is visible
+            // Initialize with empty state
             updateSuggestions("", emptyList(), currentSuggestionBarMode)
         }
         return suggestionBarView!!
     }
     
+
     override fun onCreateExtractTextView(): View? {
         // Don't show extract text view - prevents system UI overlays
         return null
@@ -309,7 +315,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         
         // Update whether to show input view based on mode
         val shouldShow = when (currentSuggestionBarMode) {
-            SuggestionBarMode.ALWAYS_SHOW -> isInputActive
+            SuggestionBarMode.ALWAYS_SHOW -> isInputActive && (word.isNotEmpty() || suggestions.isNotEmpty())
             SuggestionBarMode.AUTO -> isInputActive && (word.length >= 2 || suggestions.isNotEmpty())
             SuggestionBarMode.OFF -> false
         }
@@ -492,7 +498,7 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         // Reset autocorrect state for new input field
         autocorrectManager.reset()
         
-        // Clear suggestions
+        // Clear suggestions - don't show IME until there's actual typing
         updateSuggestions("", emptyList())
 
         // Check if we should activate auto-cap shift at start of input

@@ -18,6 +18,7 @@ package ai.jagoan.keyboard.titan2.ui.ime
 
 import ai.jagoan.keyboard.titan2.domain.model.AutocorrectSuggestion
 import ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode
+import ai.jagoan.keyboard.titan2.domain.model.ViMode
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -25,6 +26,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -32,10 +34,13 @@ import android.widget.TextView
 /**
  * Non-Compose suggestion bar for autocorrect
  */
-class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
+class SuggestionBarView(context: Context) : FrameLayout(context) {
 
+    private val scrollView: HorizontalScrollView
     private val container: LinearLayout
+    private val viModeIndicator: ViModeIndicatorView
     private var onSuggestionClickListener: ((String) -> Unit)? = null
+    var fixedTextSize: Float = 16f
 
     init {
         setBackgroundColor(Color.parseColor("#000000"))
@@ -44,18 +49,43 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
             dpToPx(25f)
         )
 
+        // Create container for suggestions
         container = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
+            gravity = Gravity.CENTER
             // Add extra left padding to avoid overlapping with down arrow (60dp left)
             // Add extra right padding to avoid overlapping with keyboard icon (60dp right)
             setPadding(dpToPx(60f), 0, dpToPx(60f), 0)
         }
 
-        addView(container)
+        // Create scroll view for suggestions
+        scrollView = HorizontalScrollView(context).apply {
+            layoutParams = LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            isFillViewport = true
+            addView(container)
+        }
+
+        // Create Vi mode indicator
+        viModeIndicator = ViModeIndicatorView(context).apply {
+            layoutParams = LayoutParams(
+                dpToPx(16f),
+                dpToPx(16f)
+            ).apply {
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                marginEnd = dpToPx(8f)
+            }
+        }
+
+        // Add views to the frame layout
+        addView(scrollView)
+        addView(viModeIndicator)
     }
 
     fun setSuggestions(currentWord: String, suggestions: List<AutocorrectSuggestion>, mode: SuggestionBarMode = SuggestionBarMode.AUTO) {
@@ -63,7 +93,7 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
 
         // In ALWAYS_SHOW mode, keep bar visible even when empty
         if (mode == SuggestionBarMode.ALWAYS_SHOW) {
-            visibility = View.VISIBLE
+            scrollView.visibility = View.VISIBLE
             if (currentWord.isBlank() && suggestions.isEmpty()) {
                 // Show placeholder with empty space to keep bar visible and maintain structure
                 container.addView(createPlaceholderText())
@@ -72,23 +102,40 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
         } else {
             // AUTO and OFF modes - hide when empty
             if (currentWord.isBlank() && suggestions.isEmpty()) {
-                visibility = View.GONE
+                scrollView.visibility = View.GONE
                 return
             }
-            visibility = View.VISIBLE
+            scrollView.visibility = View.VISIBLE
         }
 
-        // Add current word chip
+        // Sort suggestions: current word, high confidence (bold), normal
+        val sortedSuggestions = mutableListOf<Pair<String, SuggestionType>>()
+
+        // Add current word first
         if (currentWord.isNotBlank()) {
-            container.addView(createSuggestionChip(currentWord, isCurrentWord = true))
+            sortedSuggestions.add(Pair(currentWord, SuggestionType.CURRENT))
         }
 
-        // Add suggestion chips
-        suggestions.take(3).forEach { suggestion ->
+        // Separate high confidence and normal suggestions
+        val highConfidence = suggestions.filter { it.isHighConfidence() }.take(3)
+        val normal = suggestions.filterNot { it.isHighConfidence() }.take(3 - highConfidence.size)
+
+        // Add high confidence suggestions
+        highConfidence.forEach { suggestion ->
+            sortedSuggestions.add(Pair(suggestion.suggestion, SuggestionType.HIGH_CONFIDENCE))
+        }
+
+        // Add normal suggestions
+        normal.forEach { suggestion ->
+            sortedSuggestions.add(Pair(suggestion.suggestion, SuggestionType.NORMAL))
+        }
+
+        // Create chips in sorted order
+        sortedSuggestions.take(3).forEach { (text, type) ->
             container.addView(createSuggestionChip(
-                suggestion.suggestion,
-                isCurrentWord = false,
-                isHighConfidence = suggestion.isHighConfidence()
+                text,
+                isCurrentWord = type == SuggestionType.CURRENT,
+                isHighConfidence = type == SuggestionType.HIGH_CONFIDENCE
             ))
         }
     }
@@ -101,6 +148,13 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
         onSuggestionClickListener = listener
     }
 
+    /**
+     * Update Vi mode indicator visibility
+     */
+    fun updateViMode(mode: ViMode) {
+        viModeIndicator.updateViMode(mode)
+    }
+
     private fun createSuggestionChip(
         text: String,
         isCurrentWord: Boolean,
@@ -108,17 +162,13 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
     ): View {
         return TextView(context).apply {
             this.text = text
-            textSize = 10f
+            textSize = fixedTextSize
             setTextColor(Color.WHITE)
             typeface = if (isHighConfidence) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
 
-            val bgColor = when {
-                isCurrentWord -> Color.parseColor("#404040")
-                isHighConfidence -> Color.parseColor("#4A90E2")
-                else -> Color.parseColor("#505050")
-            }
-            setBackgroundColor(bgColor)
+            // All chips have black background
+            setBackgroundColor(Color.BLACK)
 
             val horizontalPadding = dpToPx(10f)
             val verticalPadding = dpToPx(6f)
@@ -144,7 +194,7 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
     private fun createPlaceholderText(): View {
         return TextView(context).apply {
             text = " " // Empty space instead of text
-            textSize = 10f
+            textSize = fixedTextSize
             setTextColor(Color.parseColor("#808080"))
             typeface = Typeface.DEFAULT
             gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
@@ -171,5 +221,11 @@ class SuggestionBarView(context: Context) : HorizontalScrollView(context) {
             dp,
             context.resources.displayMetrics
         ).toInt()
+    }
+
+    private enum class SuggestionType {
+        CURRENT,
+        HIGH_CONFIDENCE,
+        NORMAL
     }
 }

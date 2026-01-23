@@ -11,16 +11,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🎉 New Features
 
+#### Vi Mode Cursor Navigation & Editing
+
+**Vi Mode Integration**:
+
+- Added full Vi mode support for cursor navigation and text editing
+- Toggle Vi mode with **TAB+V+I** keyboard sequence
+- Visual indicator: Green bullet (●) appears on suggestion bar when enabled
+- Seamless integration with normal typing - Vi commands only trigger on specific keys
+- Works in all input fields (messaging apps, notes, web forms, etc.)
+
+**Navigation Commands**:
+
+- **h, j, k, l** - Move cursor left, down, up, right
+- **w** - Move forward by one word
+- **b** - Move backward by one word
+- **0** - Move to beginning of current line
+- **$** (Shift+4) - Move to end of current line
+- **gg** - Move to beginning of document
+- **G** - Move to end of document
+
+**Editing Commands**:
+
+- **dd** - Delete current line (stored in Vi clipboard)
+- **yy** - Yank (copy) current line (stored in Vi clipboard)
+- **p** - Paste clipboard content after cursor
+- **u** - Undo last change (Ctrl+Z)
+- **r + [char]** - Replace character under cursor with next typed character
+- **x** - Delete character under cursor
+
+**Implementation Details**:
+
+- Vi clipboard separate from system clipboard for dd/yy/p operations
+- Multi-key sequences with 500ms timeout (gg, dd, yy)
+- Comprehensive cursor movement using DPAD keys and text manipulation
+- State management in `KeyEventHandler` with `ViMode` enum
+- Visual indicator component: `ViModeIndicatorView`
+
+**Files**:
+
+- `ai.jagoan.keyboard.titan2.domain.model.ViMode` - Vi mode state enum
+- `ai.jagoan.keyboard.titan2.ui.ime.ViModeIndicatorView` - Visual indicator component
+- `ai.jagoan.keyboard.titan2.ime.KeyEventHandler` - Vi command handling and cursor movement
+- `ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView` - Integrated Vi mode indicator display
+
 #### Suggestion Bar (IME Controls)
 
-**Always-Visible Suggestion Bar**:
+**Smart Suggestion Bar**:
 
 - Added suggestion bar that displays autocorrect suggestions and current word
-- **Always visible by default** when keyboard is active (ALWAYS_SHOW mode)
+- **Shows only when typing** to preserve keyboard gestures functionality (ALWAYS_SHOW mode)
 - Compact **25dp height** to minimize content displacement (50% smaller than original 48dp)
-- Shows empty placeholder when no suggestions available to maintain visibility
 - Three display modes configurable in settings:
-    - **ALWAYS_SHOW** (default): Always visible, shows empty bar when no suggestions
+    - **ALWAYS_SHOW** (default): Shows when typing with text or suggestions present
     - **AUTO**: Shows only when typing with 2+ characters or when suggestions exist
     - **OFF**: Never shows
 
@@ -39,16 +82,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **User Experience**:
 
-- Provides consistent IME control visibility
+- Shows suggestions when needed without blocking keyboard gestures
 - Easy one-tap suggestion selection
 - Visual feedback for autocorrect availability
+- Automatically hides when input field is empty to enable Titan 2 keyboard gestures
 - Settings migration: Users upgrading from old boolean setting get ALWAYS_SHOW mode by default
+
+**Improved Design**:
+
+- Centered suggestion chips for better visual balance
+- All chips now have consistent black background with white text
+- Suggestions sorted by priority: current word, high confidence (bold), normal
+- Vi mode indicator integrated on the right side (60dp padding area)
+
+**Keyboard Gesture Compatibility**:
+
+- Suggestion bar only appears when there's actual text or suggestions
+- Hidden when input field is empty to allow Titan 2 keyboard gestures to work
+- Seamless integration - appears when typing starts, disappears when field is cleared
+- Preserves full keyboard gesture functionality on Unihertz Titan 2
+
+### 🐛 Bug Fixes
+
+**Keyboard Gesture Support**:
+
+- Fixed IME control blocking Titan 2 keyboard gestures
+- Suggestion bar now only shows when typing to preserve gesture functionality
+- Modified ALWAYS_SHOW mode to display only when text or suggestions are present
+- Ensures keyboard gestures work when input field is empty or inactive
 
 **Files**:
 
-- `ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView` - Suggestion bar UI component
+- `ai.jagoan.keyboard.titan2.ui.ime.SuggestionBarView` - Suggestion bar UI component with Vi indicator
 - `ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode` - Display mode enum
-- Integration in `JagoanInputMethodService` for lifecycle management
+- `ai.jagoan.keyboard.titan2.ime.JagoanInputMethodService` - Updated visibility logic for gesture compatibility
 - Settings toggle in `KeyboardSettings.suggestionBarMode`
 
 ---

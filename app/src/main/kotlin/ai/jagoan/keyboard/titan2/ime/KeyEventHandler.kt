@@ -41,6 +41,7 @@ import ai.jagoan.keyboard.titan2.domain.model.ModifierState
 import ai.jagoan.keyboard.titan2.domain.model.ModifiersState
 import ai.jagoan.keyboard.titan2.domain.model.SymbolCategory
 import ai.jagoan.keyboard.titan2.domain.model.SymbolData
+import ai.jagoan.keyboard.titan2.domain.model.ViMode
 import ai.jagoan.keyboard.titan2.domain.repository.ShortcutRepository
 import ai.jagoan.keyboard.titan2.ui.ime.getSymbolIndexForKeyCode
 import ai.jagoan.keyboard.titan2.util.LazyLog
@@ -100,6 +101,18 @@ class KeyEventHandler @Inject constructor(
     // Suggestion update callback
     var onSuggestionUpdateNeeded: (() -> Unit)? = null
 
+    // Vi mode state tracking
+    private var viMode: ViMode = ViMode.DISABLED
+    private var viModeListener: ((ViMode) -> Unit)? = null
+    private var pendingViToggle = false
+    private var pendingVKey = false
+    private var pendingGKey = false
+    private var pendingDKey = false
+    private var pendingYKey = false
+    private var pendingRKey = false
+    private var viClipboard: String = ""
+    private var viModeHandler: android.os.Handler = android.os.Handler(android.os.Looper.getMainLooper())
+
     // Currency shortcut tracking (SYM+C+CountryCode)
     private var currencyShortcutMode = false
     private var currencyCountryCode = StringBuilder()
@@ -128,6 +141,30 @@ class KeyEventHandler @Inject constructor(
      */
     fun setModifierStateListener(listener: ModifierStateListener?) {
         modifierStateListener = listener
+    }
+
+    /**
+     * Set the listener for Vi mode state changes
+     */
+    fun setViModeListener(listener: ((ViMode) -> Unit)?) {
+        viModeListener = listener
+    }
+
+    /**
+     * Get current Vi mode state
+     */
+    fun getViMode(): ViMode = viMode
+
+    /**
+     * Toggle Vi mode on/off
+     */
+    private fun toggleViMode() {
+        viMode = when (viMode) {
+            ViMode.DISABLED -> ViMode.ENABLED
+            ViMode.ENABLED -> ViMode.DISABLED
+        }
+        viModeListener?.invoke(viMode)
+        Log.d(TAG, "Vi mode toggled to: $viMode")
     }
 
     /**
@@ -252,6 +289,12 @@ class KeyEventHandler @Inject constructor(
      * @return KeyEventResult indicating whether the event was handled
      */
     fun handleKeyDown(event: KeyEvent, inputConnection: InputConnection?): KeyEventResult = PerformanceMonitor.measure("key_down_event") {
+        // Log all key events with full metaState for debugging
+        Log.d(TAG, "handleKeyDown: keyCode=${event.keyCode}, char=${event.unicodeChar.toChar()}, metaState=0x${event.metaState.toString(16)}, " +
+                "META_FUNCTION=${(event.metaState and KeyEvent.META_FUNCTION_ON) != 0}, " +
+                "META_ALT=${(event.metaState and KeyEvent.META_ALT_ON) != 0}, " +
+                "META_SHIFT=${(event.metaState and KeyEvent.META_SHIFT_ON) != 0}")
+        
         // Log SPACE key at the very start
         if (event.keyCode == KeyEvent.KEYCODE_SPACE) {
             Log.d(TAG, ">>> SPACE KEY RECEIVED at handleKeyDown entry <<<")
@@ -393,6 +436,56 @@ class KeyEventHandler @Inject constructor(
 
         // Check if we should activate auto-cap shift before processing this key
         checkAndActivateAutoCapShift(inputConnection)
+
+        // Handle Vi mode toggle (TAB+V+I sequence)
+        // TAB key is keyCode 61 on Titan 2
+        
+        // Log key press for debugging Vi mode toggle
+        if (event.keyCode == KeyEvent.KEYCODE_TAB || event.keyCode == KeyEvent.KEYCODE_V || 
+            event.keyCode == KeyEvent.KEYCODE_I || pendingVKey) {
+            Log.d(TAG, "Vi toggle check: keyCode=${event.keyCode}, pendingVKey=$pendingVKey, viMode=$viMode")
+        }
+        
+        // Detect TAB+V (TAB key is keyCode 61)
+        if (event.keyCode == KeyEvent.KEYCODE_TAB) {
+            pendingVKey = false // Reset on TAB press
+            pendingViToggle = true
+            Log.d(TAG, "TAB key detected, waiting for V")
+            return KeyEventResult.Handled
+        }
+        
+        // Detect V after TAB
+        if (pendingViToggle && event.keyCode == KeyEvent.KEYCODE_V) {
+            pendingViToggle = false
+            pendingVKey = true
+            Log.d(TAG, "TAB+V detected, waiting for I")
+            return KeyEventResult.Handled
+        }
+        
+        // Detect I after TAB+V
+        if (pendingVKey && event.keyCode == KeyEvent.KEYCODE_I) {
+            pendingVKey = false
+            toggleViMode()
+            Log.d(TAG, "Vi mode toggled via TAB+V+I to: $viMode")
+            return KeyEventResult.Handled
+        }
+        
+        // Reset pending keys if other key is pressed
+        if ((pendingViToggle || pendingVKey) && 
+            event.keyCode != KeyEvent.KEYCODE_V && 
+            event.keyCode != KeyEvent.KEYCODE_I) {
+            Log.d(TAG, "Resetting Vi toggle sequence, got keyCode=${event.keyCode}")
+            pendingViToggle = false
+            pendingVKey = false
+        }
+
+        // Handle Vi mode commands
+        if (viMode == ViMode.ENABLED) {
+            val viResult = handleViModeCommand(event, inputConnection)
+            if (viResult == KeyEventResult.Handled) {
+                return KeyEventResult.Handled
+            }
+        }
 
         // Handle modifier keys (Shift/Alt/Sym)
         when (event.keyCode) {
@@ -983,7 +1076,325 @@ class KeyEventHandler @Inject constructor(
     }
 
     /**
-     * Check if the key code represents a letter
+     * Handle Vi mode commands
+     */
+    private fun handleViModeCommand(event: KeyEvent, ic: InputConnection): KeyEventResult {
+        // Handle pending R key (replace character)
+        if (pendingRKey) {
+            val char = event.unicodeChar
+            if (char != 0) {
+                ic.beginBatchEdit()
+                ic.deleteSurroundingText(0, 1)
+                ic.commitText(char.toChar().toString(), 1)
+                ic.endBatchEdit()
+                pendingRKey = false
+                Log.d(TAG, "Vi: Replace character with ${char.toChar()}")
+            }
+            return KeyEventResult.Handled
+        }
+
+        when (event.keyCode) {
+            // Navigation: h, j, k, l
+            KeyEvent.KEYCODE_H -> {
+                moveCursorLeft(ic)
+                return KeyEventResult.Handled
+            }
+            KeyEvent.KEYCODE_J -> {
+                moveCursorDown(ic)
+                return KeyEventResult.Handled
+            }
+            KeyEvent.KEYCODE_K -> {
+                moveCursorUp(ic)
+                return KeyEventResult.Handled
+            }
+            KeyEvent.KEYCODE_L -> {
+                moveCursorRight(ic)
+                return KeyEventResult.Handled
+            }
+
+            // Word navigation: w, b
+            KeyEvent.KEYCODE_W -> {
+                moveForwardWord(ic)
+                return KeyEventResult.Handled
+            }
+            KeyEvent.KEYCODE_B -> {
+                moveBackwardWord(ic)
+                return KeyEventResult.Handled
+            }
+
+            // Line navigation: 0, $
+            KeyEvent.KEYCODE_0 -> {
+                moveToLineStart(ic)
+                return KeyEventResult.Handled
+            }
+            KeyEvent.KEYCODE_4 -> { // $ key requires shift
+                if (event.isShiftPressed) {
+                    moveToLineEnd(ic)
+                    return KeyEventResult.Handled
+                }
+                return KeyEventResult.NotHandled
+            }
+
+            // Document navigation: gg, G
+            KeyEvent.KEYCODE_G -> {
+                if (pendingGKey) {
+                    moveToDocStart(ic)
+                    pendingGKey = false
+                    Log.d(TAG, "Vi: gg - move to document start")
+                } else {
+                    pendingGKey = true
+                    viModeHandler.postDelayed({
+                        if (pendingGKey) {
+                            moveToDocEnd(ic)
+                            pendingGKey = false
+                            Log.d(TAG, "Vi: G - move to document end")
+                        }
+                    }, 500)
+                }
+                return KeyEventResult.Handled
+            }
+
+            // Editing: dd, yy
+            KeyEvent.KEYCODE_D -> {
+                if (pendingDKey) {
+                    deleteCurrentLine(ic)
+                    pendingDKey = false
+                    Log.d(TAG, "Vi: dd - delete line")
+                } else {
+                    pendingDKey = true
+                    viModeHandler.postDelayed({ pendingDKey = false }, 500)
+                }
+                return KeyEventResult.Handled
+            }
+
+            KeyEvent.KEYCODE_Y -> {
+                if (pendingYKey) {
+                    yankCurrentLine(ic)
+                    pendingYKey = false
+                    Log.d(TAG, "Vi: yy - yank line")
+                } else {
+                    pendingYKey = true
+                    viModeHandler.postDelayed({ pendingYKey = false }, 500)
+                }
+                return KeyEventResult.Handled
+            }
+
+            // Paste: p
+            KeyEvent.KEYCODE_P -> {
+                paste(ic)
+                Log.d(TAG, "Vi: p - paste")
+                return KeyEventResult.Handled
+            }
+
+            // Undo: u
+            KeyEvent.KEYCODE_U -> {
+                undo(ic)
+                Log.d(TAG, "Vi: u - undo")
+                return KeyEventResult.Handled
+            }
+
+            // Delete character: x
+            KeyEvent.KEYCODE_X -> {
+                deleteCharUnderCursor(ic)
+                Log.d(TAG, "Vi: x - delete character")
+                return KeyEventResult.Handled
+            }
+
+            // Replace character: r
+            KeyEvent.KEYCODE_R -> {
+                pendingRKey = true
+                Log.d(TAG, "Vi: r - waiting for replacement character")
+                return KeyEventResult.Handled
+            }
+
+            else -> {
+                // Reset pending states for unhandled keys
+                pendingGKey = false
+                pendingDKey = false
+                pendingYKey = false
+                return KeyEventResult.NotHandled
+            }
+        }
+    }
+
+    // Vi mode cursor movement functions
+
+    private fun moveCursorLeft(ic: InputConnection) {
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT))
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_LEFT))
+    }
+
+    private fun moveCursorDown(ic: InputConnection) {
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_DOWN))
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_DOWN))
+    }
+
+    private fun moveCursorUp(ic: InputConnection) {
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_UP))
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_UP))
+    }
+
+    private fun moveCursorRight(ic: InputConnection) {
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT))
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_RIGHT))
+    }
+
+    private fun moveForwardWord(ic: InputConnection) {
+        val textAfter = ic.getTextAfterCursor(1000, 0)?.toString() ?: return
+        
+        // Skip current word's remaining characters
+        var offset = 0
+        while (offset < textAfter.length && textAfter[offset].isLetterOrDigit()) {
+            offset++
+        }
+        
+        // Skip whitespace
+        while (offset < textAfter.length && textAfter[offset].isWhitespace()) {
+            offset++
+        }
+        
+        if (offset > 0) {
+            // Move cursor forward
+            for (i in 0 until offset) {
+                moveCursorRight(ic)
+            }
+        }
+    }
+
+    private fun moveBackwardWord(ic: InputConnection) {
+        val textBefore = ic.getTextBeforeCursor(1000, 0)?.toString() ?: return
+        
+        if (textBefore.isEmpty()) return
+        
+        var offset = 0
+        var index = textBefore.length - 1
+        
+        // Skip whitespace
+        while (index >= 0 && textBefore[index].isWhitespace()) {
+            offset++
+            index--
+        }
+        
+        // Skip word characters
+        while (index >= 0 && textBefore[index].isLetterOrDigit()) {
+            offset++
+            index--
+        }
+        
+        if (offset > 0) {
+            // Move cursor backward
+            for (i in 0 until offset) {
+                moveCursorLeft(ic)
+            }
+        }
+    }
+
+    private fun moveToLineStart(ic: InputConnection) {
+        val textBefore = ic.getTextBeforeCursor(10000, 0)?.toString() ?: return
+        val lastNewline = textBefore.lastIndexOf('\n')
+        val offset = textBefore.length - lastNewline - 1
+        
+        if (offset > 0) {
+            for (i in 0 until offset) {
+                moveCursorLeft(ic)
+            }
+        }
+    }
+
+    private fun moveToLineEnd(ic: InputConnection) {
+        val textAfter = ic.getTextAfterCursor(10000, 0)?.toString() ?: return
+        val nextNewline = textAfter.indexOf('\n')
+        val offset = if (nextNewline == -1) textAfter.length else nextNewline
+        
+        if (offset > 0) {
+            for (i in 0 until offset) {
+                moveCursorRight(ic)
+            }
+        }
+    }
+
+    private fun moveToDocStart(ic: InputConnection) {
+        // Use Ctrl+Home to move to start
+        val downTime = android.os.SystemClock.uptimeMillis()
+        ic.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MOVE_HOME, 0, KeyEvent.META_CTRL_ON))
+        ic.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MOVE_HOME, 0, KeyEvent.META_CTRL_ON))
+    }
+
+    private fun moveToDocEnd(ic: InputConnection) {
+        // Use Ctrl+End to move to end
+        val downTime = android.os.SystemClock.uptimeMillis()
+        ic.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MOVE_END, 0, KeyEvent.META_CTRL_ON))
+        ic.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MOVE_END, 0, KeyEvent.META_CTRL_ON))
+    }
+
+    // Vi mode editing functions
+
+    private fun deleteCurrentLine(ic: InputConnection) {
+        val textBefore = ic.getTextBeforeCursor(10000, 0)?.toString() ?: ""
+        val textAfter = ic.getTextAfterCursor(10000, 0)?.toString() ?: ""
+        
+        // Find line boundaries
+        val lineStart = textBefore.lastIndexOf('\n')
+        val lineStartOffset = textBefore.length - lineStart - 1
+        
+        val lineEnd = textAfter.indexOf('\n')
+        val lineEndOffset = if (lineEnd == -1) textAfter.length else lineEnd + 1 // Include newline
+        
+        // Extract current line
+        val beforeLine = if (lineStart >= 0) textBefore.substring(lineStart + 1) else textBefore
+        val afterLine = if (lineEnd >= 0) textAfter.substring(0, lineEnd) else textAfter
+        val currentLine = beforeLine + afterLine
+        
+        // Store in clipboard
+        viClipboard = currentLine
+        
+        // Delete the line
+        ic.beginBatchEdit()
+        ic.deleteSurroundingText(lineStartOffset, lineEndOffset)
+        ic.endBatchEdit()
+        
+        Log.d(TAG, "Vi: Deleted line (${currentLine.length} chars)")
+    }
+
+    private fun yankCurrentLine(ic: InputConnection) {
+        val textBefore = ic.getTextBeforeCursor(10000, 0)?.toString() ?: ""
+        val textAfter = ic.getTextAfterCursor(10000, 0)?.toString() ?: ""
+        
+        // Find line boundaries
+        val lineStart = textBefore.lastIndexOf('\n')
+        val lineEnd = textAfter.indexOf('\n')
+        
+        // Extract current line
+        val beforeLine = if (lineStart >= 0) textBefore.substring(lineStart + 1) else textBefore
+        val afterLine = if (lineEnd >= 0) textAfter.substring(0, lineEnd) else textAfter
+        val currentLine = beforeLine + afterLine
+        
+        // Store in clipboard
+        viClipboard = currentLine
+        
+        Log.d(TAG, "Vi: Yanked line (${currentLine.length} chars)")
+    }
+
+    private fun paste(ic: InputConnection) {
+        if (viClipboard.isNotEmpty()) {
+            ic.commitText(viClipboard, 1)
+            Log.d(TAG, "Vi: Pasted ${viClipboard.length} chars")
+        }
+    }
+
+    private fun undo(ic: InputConnection) {
+        // Send Ctrl+Z for undo
+        val downTime = android.os.SystemClock.uptimeMillis()
+        ic.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, 0, KeyEvent.META_CTRL_ON))
+        ic.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_Z, 0, KeyEvent.META_CTRL_ON))
+    }
+
+    private fun deleteCharUnderCursor(ic: InputConnection) {
+        ic.deleteSurroundingText(0, 1)
+    }
+
+    /**
+     * Check if the given key code is a letter key (A-Z)
      */
     private fun isLetterKey(keyCode: Int): Boolean {
         return keyCode in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z
