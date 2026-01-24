@@ -81,7 +81,7 @@ Row 3: Z=!  X=7  C=8  V=9  B=.  N=,  M=?
 
 **Design Features:**
 
-- 🖤 Pure black background (#000000) for OLED efficiency
+- 🖤 Pure black background (#000000)
 - ⬜ Black buttons with light gray borders (#4A4A4A)
 - 📐 3D depth from 1dp border + 4dp shadow elevation
 - 💡 Light gray text (#E0E0E0) for optimal readability
