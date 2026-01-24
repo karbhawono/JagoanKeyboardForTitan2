@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.5] - 2026-01-24
+
+### 📚 Dictionary Updates
+
+- **Indonesian Dictionary Refresh**
+    - Updated `assets/dictionaries/id.txt` with latest wordlist
+    - Total entries: **105,162 words**
+    - Improved word recognition and autocorrect accuracy for Indonesian language
+    - Enhanced vocabulary coverage for modern Indonesian usage
+
+---
+
 ## [0.4.4] - 2025-01-24
 
 ### 🎉 New Features
