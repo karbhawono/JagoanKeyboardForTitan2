@@ -1,3 +1,27 @@
+/**
+ * Copyright (c) 2025 Aryo Karbhawono
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Modifications:
+ * - Complete dictionary repository implementation with multi-language support
+ * - English dictionary with 53,902+ words from multiple sources
+ * - Indonesian dictionary support
+ * - Custom words management with separate storage files (en_custom.txt, id_custom.txt)
+ * - Export custom words to ZIP backup with JSON manifest
+ * - Import custom words with Merge/Replace modes
+ */
+
 package ai.jagoan.keyboard.titan2.data.repository
 
 import ai.jagoan.keyboard.titan2.domain.repository.AddWordResult
