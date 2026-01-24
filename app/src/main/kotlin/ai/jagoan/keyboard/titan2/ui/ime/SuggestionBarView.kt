@@ -40,6 +40,7 @@ class SuggestionBarView(context: Context) : FrameLayout(context) {
     private val container: LinearLayout
     private val viModeIndicator: ViModeIndicatorView
     private var onSuggestionClickListener: ((String) -> Unit)? = null
+    private var onSuggestionLongClickListener: ((String) -> Unit)? = null
     var fixedTextSize: Float = 16f
 
     init {
@@ -148,11 +149,167 @@ class SuggestionBarView(context: Context) : FrameLayout(context) {
         onSuggestionClickListener = listener
     }
 
+    fun setOnSuggestionLongClickListener(listener: (String) -> Unit) {
+        onSuggestionLongClickListener = listener
+    }
+
     /**
      * Update Vi mode indicator visibility
      */
     fun updateViMode(mode: ViMode) {
         viModeIndicator.updateViMode(mode)
+    }
+    
+    private var viCommandView: TextView? = null
+    
+    /**
+     * Show Vi command mode text in suggestion bar
+     */
+    fun showViCommand(command: String) {
+        scrollView.visibility = View.VISIBLE
+        
+        // Reuse existing view if possible to prevent flickering
+        if (viCommandView == null || viCommandView?.parent == null) {
+            container.removeAllViews()
+            
+            viCommandView = TextView(context).apply {
+                textSize = fixedTextSize
+                setTextColor(Color.YELLOW)
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
+                
+                val horizontalPadding = dpToPx(10f)
+                val verticalPadding = dpToPx(6f)
+                setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+                
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                ).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                
+                setSingleLine(true)
+            }
+            
+            container.addView(viCommandView)
+        }
+        
+        // Just update text, don't rebuild view
+        viCommandView?.text = command
+        viCommandView?.setTextColor(Color.YELLOW)
+        viCommandView?.textSize = fixedTextSize
+    }
+    
+    /**
+     * Show feedback message in suggestion bar (for dictionary operations)
+     */
+    fun showFeedback(message: String) {
+        scrollView.visibility = View.VISIBLE
+        
+        // Reuse existing view if possible to prevent flickering
+        if (viCommandView == null || viCommandView?.parent == null) {
+            container.removeAllViews()
+            
+            viCommandView = TextView(context).apply {
+                textSize = fixedTextSize
+                setTextColor(Color.WHITE)
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
+                
+                val horizontalPadding = dpToPx(10f)
+                val verticalPadding = dpToPx(6f)
+                setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+                
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                ).apply {
+                    gravity = Gravity.CENTER
+                }
+                
+                setSingleLine(false)
+                maxLines = 2
+            }
+            
+            container.addView(viCommandView)
+        }
+        
+        // Update text and styling for feedback (white, same size as chips, centered)
+        viCommandView?.text = message
+        viCommandView?.setTextColor(Color.WHITE)
+        viCommandView?.textSize = fixedTextSize
+        viCommandView?.gravity = Gravity.CENTER
+    }
+    
+    /**
+     * Show language selection chips for adding word to dictionary
+     */
+    fun showLanguageSelection(word: String, onLanguageSelected: (language: String) -> Unit) {
+        container.removeAllViews()
+        scrollView.visibility = View.VISIBLE
+        
+        // Title chip (non-clickable)
+        val titleView = TextView(context).apply {
+            text = "Add '$word' to:"
+            textSize = fixedTextSize
+            setTextColor(Color.parseColor("#CCCCCC"))
+            gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
+            val horizontalPadding = dpToPx(10f)
+            val verticalPadding = dpToPx(6f)
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ).apply {
+                marginEnd = dpToPx(8f)
+            }
+        }
+        container.addView(titleView)
+        
+        // Indonesian button
+        val indonesianChip = TextView(context).apply {
+            text = "🇮🇩 Indonesian"
+            textSize = fixedTextSize
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#2E7D32"))
+            gravity = Gravity.CENTER
+            val horizontalPadding = dpToPx(10f)
+            val verticalPadding = dpToPx(6f)
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ).apply {
+                marginEnd = dpToPx(8f)
+            }
+            setOnClickListener {
+                onLanguageSelected("id")
+            }
+        }
+        container.addView(indonesianChip)
+        
+        // English button
+        val englishChip = TextView(context).apply {
+            text = "🇬🇧 English"
+            textSize = fixedTextSize
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#1976D2"))
+            gravity = Gravity.CENTER
+            val horizontalPadding = dpToPx(10f)
+            val verticalPadding = dpToPx(6f)
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ).apply {
+                marginEnd = dpToPx(8f)
+            }
+            setOnClickListener {
+                onLanguageSelected("en")
+            }
+        }
+        container.addView(englishChip)
     }
 
     private fun createSuggestionChip(
@@ -187,6 +344,11 @@ class SuggestionBarView(context: Context) : FrameLayout(context) {
 
             setOnClickListener {
                 onSuggestionClickListener?.invoke(text)
+            }
+
+            setOnLongClickListener {
+                onSuggestionLongClickListener?.invoke(text)
+                true // Consume the event
             }
         }
     }

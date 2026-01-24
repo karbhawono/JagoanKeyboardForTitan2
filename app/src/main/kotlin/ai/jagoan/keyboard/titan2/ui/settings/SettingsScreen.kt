@@ -118,6 +118,7 @@ fun isKeyboardEnabled(context: Context): Boolean {
 @Composable
 fun SettingsScreen(
     onNavigateToShortcuts: () -> Unit = {},
+    onNavigateToDictionary: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -183,6 +184,7 @@ fun SettingsScreen(
                         onLongPressAccentsChanged = viewModel::updateLongPressAccents,
                         onSuggestionBarModeChanged = viewModel::updateSuggestionBarMode,
                         onManageShortcuts = onNavigateToShortcuts,
+                        onManageDictionary = onNavigateToDictionary,
                         onNavigateToAbout = onNavigateToAbout,
                         onResetToDefaults = viewModel::resetToDefaults
                     )
@@ -283,6 +285,7 @@ private fun SettingsContent(
     onLongPressAccentsChanged: (Boolean) -> Unit,
     onSuggestionBarModeChanged: (ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode) -> Unit,
     onManageShortcuts: () -> Unit,
+    onManageDictionary: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onResetToDefaults: () -> Unit
 ) {
@@ -415,6 +418,29 @@ private fun SettingsContent(
         ) {
             Text(
                 text = stringResource(R.string.manage_shortcuts),
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.SemiBold
+                )
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Manage Dictionary Button
+        Button(
+            onClick = onManageDictionary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(SettingsDesignTokens.CornerRadiusMedium),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SettingsDesignTokens.SurfaceDark,
+                contentColor = SettingsDesignTokens.JagoanGreen
+            ),
+            border = BorderStroke(1.dp, SettingsDesignTokens.CardBorder)
+        ) {
+            Text(
+                text = "📖 Manage Dictionary",
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold
                 )

@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import ai.jagoan.keyboard.titan2.ui.dictionary.DictionaryManagementScreen
 import ai.jagoan.keyboard.titan2.ui.shortcuts.ShortcutManagementScreen
 import ai.jagoan.keyboard.titan2.ui.theme.Titan2KeyboardTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -68,6 +69,9 @@ private fun SettingsNavigation() {
                 onNavigateToShortcuts = {
                     navController.navigate("shortcuts")
                 },
+                onNavigateToDictionary = {
+                    navController.navigate("dictionary")
+                },
                 onNavigateToAbout = {
                     navController.navigate("about")
                 }
@@ -75,6 +79,13 @@ private fun SettingsNavigation() {
         }
         composable("shortcuts") {
             ShortcutManagementScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        composable("dictionary") {
+            DictionaryManagementScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

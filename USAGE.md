@@ -12,6 +12,8 @@ A practical guide to using Jagoan Keyboard for Titan 2 with real-world scenarios
 - [Currency & Numbers](#currency--numbers)
 - [Vi Mode Navigation](#vi-mode-navigation)
 - [Autocorrect & Suggestions](#autocorrect--suggestions)
+- [Dictionary Management](#dictionary-management)
+- [Add to Dictionary](#add-to-dictionary)
 - [Multi-Language Typing](#multi-language-typing)
 - [Advanced Workflows](#advanced-workflows)
 
@@ -542,9 +544,283 @@ Output: "can't wait for tomorrow"
 
 ---
 
+## Dictionary Management
+
+### Example 21: Viewing Custom Words
+
+**Scenario:** You want to see all the custom words you've added to the dictionary
+
+**Steps:**
+
+1. Open **Jagoan Keyboard Settings**
+2. Tap **"📖 Manage Dictionary"** button
+3. View your custom words grouped by language:
+    - **English** section
+    - **Indonesian** section
+4. See total word count at the top
+
+**What you see:**
+
+- Total Custom Words: 15
+- **English** (8 words)
+    - customword
+    - myname
+    - projectname
+- **Indonesian** (7 words)
+    - namaku
+    - perusahaan
+
+---
+
+### Example 22: Exporting Dictionary Backup
+
+**Scenario:** You're getting a new phone and want to backup your custom words
+
+**Steps:**
+
+1. Open **Dictionary Management** (from Settings)
+2. Tap **"📤 Export Backup"** button
+3. Share dialog appears
+4. Choose destination:
+    - **Google Drive** → Save to cloud
+    - **Email** → Send to yourself
+    - **Files** → Save to Downloads
+
+**What gets exported:**
+
+- ZIP file: `custom_words_backup_1706088000000.zip`
+- Contains:
+    - `manifest.json` (metadata)
+    - `en_custom.txt` (English words)
+    - `id_custom.txt` (Indonesian words)
+
+---
+
+### Example 23: Importing Dictionary Backup
+
+**Scenario:** Setting up keyboard on new device, restoring your custom words
+
+**Steps:**
+
+1. Open **Dictionary Management**
+2. Tap **"📥 Import Backup"**
+3. File picker opens
+4. Select your backup ZIP file
+5. **Import Mode Dialog** appears with two options:
+
+**Option A: Merge (Recommended)**
+
+- Keeps existing words
+- Adds new words from backup
+- Skips duplicates
+
+**Option B: Replace**
+
+- Deletes all existing custom words
+- Imports everything from backup
+
+6. Select mode → Tap to confirm
+7. **Import Summary** shows:
+    - Total words processed: 15
+    - Added: 15 ✓
+    - Skipped (duplicates): 0
+    - Errors: 0
+
+**Result:** All your custom words restored!
+
+---
+
+### Example 24: Deleting a Custom Word
+
+**Scenario:** You added a word by mistake and want to remove it
+
+**Steps:**
+
+1. Open **Dictionary Management**
+2. Find the word in the list
+3. Tap the **🗑️ (Delete)** icon next to the word
+4. Word is removed immediately
+5. List updates automatically
+
+**Note:** This only removes words YOU added, never built-in dictionary words.
+
+---
+
+### Example 25: Clearing All Custom Words
+
+**Scenario:** Starting fresh, want to remove all custom words
+
+**Steps:**
+
+1. Open **Dictionary Management**
+2. Tap **"🗑️ Clear All Words"** button
+3. **Confirmation dialog** appears:
+    > "This will permanently delete all your custom words. This action cannot be undone."
+4. Tap **"Clear"** to confirm (or **Cancel** to abort)
+5. All custom words deleted
+6. Empty state appears with instructions
+
+**Warning:** This is permanent! Export a backup first if you might want them later.
+
+---
+
+## Add to Dictionary
+
+### Example 26: Adding Word via Vi Mode Command
+
+**Scenario:** You're typing and want to quickly add "Jagoan" to the dictionary
+
+**Steps:**
+
+1. Type: `:atd Jagoan` (colon, atd, space, word)
+2. Press **Enter**
+3. Suggestion bar shows: **"Added 'jagoan' to English dictionary"**
+4. Word is now in dictionary
+
+**Vi Mode Commands:**
+
+- `:atd <word>` - Add to Dictionary (auto-detect language)
+- `:atdi <word>` - Add to Dictionary Indonesian
+- `:atde <word>` - Add to Dictionary English
+
+**Example with language specification:**
+
+```
+:atdi Karbhawono    [Enter]
+→ "Added 'karbhawono' to Indonesian dictionary"
+```
+
+---
+
+### Example 27: Adding Word via Long-Press Suggestion
+
+**Scenario:** Typing and autocorrect keeps "fixing" a word you want to keep
+
+**What you typed:** `Divefire`
+**Autocorrect suggests:** `Diversify`
+
+**Steps:**
+
+1. See "Diversify" suggestion in suggestion bar
+2. **Long-press** the suggestion chip
+3. Language selection dialog appears:
+    - 🇮🇩 **Indonesian**
+    - 🇬🇧 **English**
+4. Tap **English**
+5. Feedback shows: **"Added 'divefire' to English dictionary"**
+
+**Result:** "Divefire" will no longer be autocorrected!
+
+---
+
+### Example 28: Adding Technical Terms
+
+**Scenario:** You frequently type programming terms that aren't in the dictionary
+
+**Using Vi Mode (fastest):**
+
+```
+:atde kubernetes    [Enter]
+:atde postgresql    [Enter]
+:atde dockerfile    [Enter]
+```
+
+**Result:** All three terms added to English dictionary in seconds!
+
+**Alternative method (Long-press):**
+
+1. Type `kubernetes`
+2. Autocorrect suggests something else
+3. Long-press the wrong suggestion
+4. Select **English**
+5. Repeat for other terms
+
+---
+
+### Example 29: Word Validation Feedback
+
+**Scenario:** Understanding what happens when adding words
+
+**Valid Word:**
+
+```
+Input: :atd hello
+Result: ✓ "Added 'hello' to English dictionary"
+```
+
+**Already Exists:**
+
+```
+Input: :atd the
+Result: ⚠ "Word 'the' already exists in dictionary"
+```
+
+**Too Short:**
+
+```
+Input: :atd a
+Result: ✗ "Invalid word format (minimum 2 characters)"
+```
+
+**Invalid Characters:**
+
+```
+Input: :atd test123
+Result: ✗ "Invalid word format (letters only)"
+```
+
+**Valid with Apostrophe:**
+
+```
+Input: :atd don't
+Result: ✓ "Added 'don't' to English dictionary"
+```
+
+---
+
+### Example 30: Building Your Personal Vocabulary
+
+**Scenario:** Creating a personalized dictionary for your field
+
+**Medical Professional:**
+
+```
+:atde stethoscope
+:atde diagnosis
+:atde prescription
+:atde hypertension
+```
+
+**Business Professional:**
+
+```
+:atde quarterly
+:atde stakeholder
+:atde deliverable
+:atde synergy
+```
+
+**Developer:**
+
+```
+:atde refactor
+:atde async
+:atde middleware
+:atde deployment
+```
+
+**Tips:**
+
+- Add words as you encounter them
+- Use Vi mode for speed (`:atd <word>`)
+- Export backup regularly
+- Import backup on new devices
+
+---
+
 ## Multi-Language Typing
 
-### Example 21: French Accents
+### Example 31: French Accents
 
 **Scenario:** Writing a French phrase
 
@@ -572,7 +848,7 @@ Output: "Café au lait, s'il vous plaît"
 
 ---
 
-### Example 22: Spanish with Special Characters
+### Example 32: Spanish with Special Characters
 
 **Scenario:** Writing in Spanish
 
@@ -597,7 +873,7 @@ Output: "¿Cómo estás? ¡Muy bien!"
 
 ---
 
-### Example 23: German Umlauts
+### Example 33: German Umlauts
 
 **Scenario:** Typing German text
 
@@ -622,7 +898,7 @@ Output: "Schöne Grüße aus München"
 
 ---
 
-### Example 24: Portuguese Tildes
+### Example 34: Portuguese Tildes
 
 **Scenario:** Portuguese message
 
@@ -642,7 +918,7 @@ Output: "Bom dia! Como você está?"
 
 ## Advanced Workflows
 
-### Example 25: Programming with Symbols
+### Example 35: Programming with Symbols
 
 **Scenario:** Writing a JavaScript function
 
@@ -669,7 +945,7 @@ const calculatePrice = (quantity, price) => {
 
 ---
 
-### Example 26: Markdown Formatting
+### Example 36: Markdown Formatting
 
 **Scenario:** Writing formatted notes in Markdown
 
@@ -704,7 +980,7 @@ _Notes: All items must be completed by end of month._
 
 ---
 
-### Example 27: Data Entry with Numbers
+### Example 37: Data Entry with Numbers
 
 **Scenario:** Entering financial spreadsheet data
 
@@ -730,7 +1006,7 @@ Margin: 40.9%
 
 ---
 
-### Example 28: Social Media Post with Emojis
+### Example 38: Social Media Post with Emojis
 
 **Scenario:** Creating an engaging social media post
 
@@ -763,7 +1039,7 @@ What do you think? 💭👇"
 
 ---
 
-### Example 29: Email Signature with Symbols
+### Example 39: Email Signature with Symbols
 
 **Scenario:** Professional email signature
 
@@ -787,7 +1063,7 @@ John Smith
 
 ---
 
-### Example 30: Quick Command-Line Entry
+### Example 40: Quick Command-Line Entry
 
 **Scenario:** Typing commands in terminal emulator
 
@@ -833,18 +1109,21 @@ cd ~/Documents && ls -la | grep "*.txt"
 
 ### Vi Mode Commands Summary
 
-| Command     | Action             |
-| ----------- | ------------------ |
-| **h/j/k/l** | Move cursor        |
-| **w/b**     | Word navigation    |
-| **0/$**     | Line start/end     |
-| **gg/G**    | Document start/end |
-| **dd**      | Delete line        |
-| **yy**      | Copy line          |
-| **p**       | Paste              |
-| **x**       | Delete char        |
-| **r**       | Replace char       |
-| **u**       | Undo               |
+| Command        | Action                   |
+| -------------- | ------------------------ |
+| **h/j/k/l**    | Move cursor              |
+| **w/b**        | Word navigation          |
+| **0/$**        | Line start/end           |
+| **gg/G**       | Document start/end       |
+| **dd**         | Delete line              |
+| **yy**         | Copy line                |
+| **p**          | Paste                    |
+| **x**          | Delete char              |
+| **r**          | Replace char             |
+| **u**          | Undo                     |
+| **:atd word**  | Add to Dictionary (auto) |
+| **:atdi word** | Add to Dictionary (ID)   |
+| **:atde word** | Add to Dictionary (EN)   |
 
 ---
 
@@ -990,6 +1269,14 @@ cd ~/Documents && ls -la | grep "*.txt"
 | **r + char** | Replace character under cursor        |
 | **u**        | Undo last change                      |
 
+**Dictionary Commands:**
+
+| Command        | Action                                        |
+| -------------- | --------------------------------------------- |
+| **:atd word**  | Add word to Dictionary (auto-detect language) |
+| **:atdi word** | Add word to Dictionary (Indonesian)           |
+| **:atde word** | Add word to Dictionary (English)              |
+
 ---
 
 ### Modifier Keys
@@ -1098,18 +1385,31 @@ cd ~/Documents && ls -la | grep "*.txt"
 
 ### Autocorrect & Suggestions
 
-| Action                  | Result                               |
-| ----------------------- | ------------------------------------ |
-| **Tap suggestion chip** | Accept and insert suggestion         |
-| **Continue typing**     | Dismiss suggestions                  |
-| **SPACE**               | Accept top suggestion (if confident) |
-| **Backspace**           | Remove autocorrection                |
+| Action                         | Result                                   |
+| ------------------------------ | ---------------------------------------- |
+| **Tap suggestion chip**        | Accept and insert suggestion             |
+| **Long-press suggestion chip** | Add word to dictionary (language select) |
+| **Continue typing**            | Dismiss suggestions                      |
+| **SPACE**                      | Accept top suggestion (if confident)     |
+| **Backspace**                  | Remove autocorrection                    |
 
 **Suggestion Bar Modes:**
 
 - **ALWAYS_SHOW** - Shows when typing (with text/suggestions)
 - **AUTO** - Shows when 2+ chars or suggestions available (default)
 - **OFF** - Never shows
+
+---
+
+### Dictionary Management
+
+| Action                     | Location                            |
+| -------------------------- | ----------------------------------- |
+| **View custom words**      | Settings → Manage Dictionary        |
+| **Export backup**          | Dictionary Management → Export      |
+| **Import backup**          | Dictionary Management → Import      |
+| **Delete custom word**     | Dictionary Management → Delete icon |
+| **Clear all custom words** | Dictionary Management → Clear All   |
 
 ---
 

@@ -6,6 +6,58 @@ A comprehensive IME (Input Method Editor) keyboard designed specifically for Uni
 
 ## 🎯 Core Features
 
+### Dictionary Management System
+
+**Complete backup, export, import, and management solution for custom words**
+
+- **View Custom Words**:
+    - See all custom words grouped by language
+    - Total word count at a glance
+    - Organized list with language section headers
+    - Empty state with helpful instructions
+
+- **Export & Backup**:
+    - Export to ZIP backup file (timestamped: `custom_words_backup_<timestamp>.zip`)
+    - Contains JSON manifest with metadata
+    - Includes per-language text files (`en_custom.txt`, `id_custom.txt`)
+    - Share via any app (Google Drive, Email, Files, etc.)
+    - Secure FileProvider integration (Android 7+)
+
+- **Import & Restore**:
+    - **Merge Mode**: Add new words, keep existing (skip duplicates)
+    - **Replace Mode**: Clear all existing, import from backup
+    - Import validation with version compatibility checks
+    - Detailed summary showing added/skipped/error counts
+
+- **Word Management**:
+    - Delete individual custom words with confirmation
+    - Clear all custom words (per-language or all languages)
+    - Warning dialogs for destructive actions
+
+- **Access**: Settings → "📖 Manage Dictionary" button
+
+### Add-to-Dictionary Feature
+
+**Multiple ways to add custom words to your personal dictionary**
+
+1. **Vi-mode Commands** - Fast command-line style word addition
+    - `:atd <word>` - Add to Dictionary (auto-detect language)
+    - `:atdi <word>` - Add to Dictionary (Indonesian)
+    - `:atde <word>` - Add to Dictionary (English)
+    - Visual feedback in suggestion bar
+
+2. **Long-press Suggestions** - Context menu from suggestion bar
+    - Long-press any suggestion chip
+    - Select language (Indonesian / English)
+    - Instant feedback on success/duplicate/error
+
+**Word Validation:**
+
+- Minimum 2 characters
+- Alphabetic only (plus apostrophes and hyphens)
+- Automatic lowercase conversion
+- Duplicate detection across all dictionaries
+
 ### Vi Mode Cursor Navigation & Editing
 
 **Professional text editing with Vi commands**
@@ -29,6 +81,17 @@ A comprehensive IME (Input Method Editor) keyboard designed specifically for Uni
     - `u` - Undo
     - `r` - Replace character
     - `x` - Delete character under cursor
+- **Dictionary Commands** (v0.4.7):
+    - `:atd <word>` - Add to Dictionary (auto-detect)
+    - `:atdi <word>` - Add to Dictionary (Indonesian)
+    - `:atde <word>` - Add to Dictionary (English)
+
+**Enhanced Key Detection** (v0.4.7):
+
+- Unicode character detection with modifier states
+- ALT+key combinations (e.g., ALT+p for colon)
+- Multiple Enter key codes (ENTER, NUMPAD_ENTER, DPAD_CENTER)
+- Improved command mode state management
 
 **Setup Required:**
 
@@ -67,10 +130,14 @@ A comprehensive IME (Input Method Editor) keyboard designed specifically for Uni
     - Medium confidence (>0.5) - Regular suggestions
     - Top 5 suggestions sorted by confidence
 - **Multi-Language Support**:
-    - English dictionary
+    - English dictionary (53,902+ words)
     - Indonesian (Bahasa Indonesia) dictionary
     - English contractions database
     - Personal dictionary for custom words
+- **Custom Words Storage** (v0.4.7):
+    - Separate storage for custom words (`en_custom.txt`, `id_custom.txt`)
+    - Never mixed with built-in dictionaries
+    - Export/import ready backup format
 
 ### Smart Number Formatting
 
@@ -247,6 +314,7 @@ Insert currency symbols by country code:
 
 - **General**: Core typing behavior
 - **Autocorrect**: Dictionary and suggestions
+- **Dictionary Management**: View, export, import, delete custom words (v0.4.7)
 - **Keyboard**: Modifiers and special keys
 - **Currency & Symbols**: Quick access characters
 - **Advanced**: Power user features
@@ -310,6 +378,10 @@ Insert currency symbols by country code:
 
 ## 📝 Version History
 
+- **v0.4.7** (2025-01-24): Dictionary Management, Add-to-Dictionary, Vi-mode enhancements
+- **v0.4.6** (2025-01-24): Dictionary overhaul (53,902 English words)
+- **v0.4.5** (2025-01-24): Dictionary updates
+- **v0.4.4** (2025-01-24): Symbol picker shortcuts, currency by country code
 - **v0.4.3** (2025-01-23): Vi Mode, Keyboard gesture fix
 - **v0.4.2** (2025-01-23): Smart Suggestion Bar
 - **v0.4.1** (2025-01-22): Smart Number Formatting

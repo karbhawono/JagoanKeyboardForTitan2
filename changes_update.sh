@@ -3,7 +3,7 @@
 # changes_update.sh - Automated Changelog Generator for JagoanKeyboard
 # 
 # This script automatically detects code changes from git commits and updates
-# change.md with properly formatted changelog entries.
+# CHANGES.md with properly formatted changelog entries.
 #
 # Usage:
 #   ./changes_update.sh              # Auto-detect changes since last tag
@@ -27,7 +27,7 @@ set -e
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CHANGELOG="$SCRIPT_DIR/change.md"
+CHANGELOG="$SCRIPT_DIR/CHANGES.md"
 GRADLE_FILE="$SCRIPT_DIR/app/build.gradle.kts"
 BACKUP_DIR="$SCRIPT_DIR/.changelog_backups"
 TEMP_ENTRY="/tmp/changelog_entry_$$.md"
@@ -123,9 +123,9 @@ check_requirements() {
         exit 1
     fi
     
-    # Check if change.md exists
+    # Check if CHANGES.md exists
     if [[ ! -f "$CHANGELOG" ]]; then
-        print_error "change.md not found at: $CHANGELOG"
+        print_error "CHANGES.md not found at: $CHANGELOG"
         exit 1
     fi
     
@@ -172,7 +172,7 @@ backup_changelog() {
     mkdir -p "$BACKUP_DIR"
     
     local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_file="$BACKUP_DIR/change.md.$timestamp"
+    local backup_file="$BACKUP_DIR/CHANGES.md.$timestamp"
     
     cp "$CHANGELOG" "$backup_file"
     print_success "Backup created: $backup_file"
@@ -622,10 +622,10 @@ main() {
     print_success "Backup saved: $BACKUP_FILE"
     echo ""
     print_info "Next steps:"
-    echo "  1. Review the updated change.md"
+    echo "  1. Review the updated CHANGES.md"
     echo "  2. Make any manual adjustments if needed"
     echo "  3. Commit the changes:"
-    echo "     git add change.md"
+    echo "     git add CHANGES.md"
     echo "     git commit -m \"docs: Update changelog for v$VERSION\""
     echo "     git tag -a \"v$VERSION\" -m \"Release v$VERSION\""
     echo ""

@@ -27,6 +27,7 @@ class AutocorrectEngine(
         private const val HIGH_CONFIDENCE_THRESHOLD = 0.8f
         private const val MEDIUM_CONFIDENCE_THRESHOLD = 0.5f
         private const val MAX_SUGGESTIONS = 5
+        private const val MAX_CANDIDATES_TO_CHECK = 1000 // Limit search space for performance
         
         // QWERTY keyboard layout for proximity calculations
         private val KEYBOARD_LAYOUT = mapOf(
@@ -39,6 +40,16 @@ class AutocorrectEngine(
             'z' to Pair(0, 2), 'x' to Pair(1, 2), 'c' to Pair(2, 2), 'v' to Pair(3, 2),
             'b' to Pair(4, 2), 'n' to Pair(5, 2), 'm' to Pair(6, 2)
         )
+        
+        // Get keyboard neighbors for a character
+        private fun getKeyboardNeighbors(c: Char): Set<Char> {
+            val pos = KEYBOARD_LAYOUT[c] ?: return emptySet()
+            return KEYBOARD_LAYOUT.filter { (_, p) ->
+                val dx = kotlin.math.abs(p.first - pos.first)
+                val dy = kotlin.math.abs(p.second - pos.second)
+                dx <= 1 && dy <= 1 && (dx + dy) > 0
+            }.keys
+        }
     }
     
     /**
@@ -93,23 +104,37 @@ class AutocorrectEngine(
     
     /**
      * Generate candidate suggestions from dictionary words.
+     * Uses optimized filtering to avoid checking all 1.7M+ words.
      */
     private fun generateCandidates(
         word: String,
         contextWords: List<String>
     ): List<AutocorrectSuggestion> {
+        val startTime = System.currentTimeMillis()
         val candidates = mutableListOf<AutocorrectSuggestion>()
-        val allWords = dictionaryRepository.getAllWords()
         
         // Detect likely language from context
         val contextLanguage = detectContextLanguage(contextWords)
         
-        for (dictWord in allWords) {
+        // Get candidate words using smart filtering
+        val candidateWords = getCandidateWords(word)
+        
+        Log.d(TAG, "Checking ${candidateWords.size} candidates for '$word' (filtered from ${dictionaryRepository.getAllWords().size})")
+        
+        var checked = 0
+        for (dictWord in candidateWords) {
+            // Early termination if we have enough good suggestions
+            if (candidates.size >= MAX_SUGGESTIONS * 3 && checked > MAX_CANDIDATES_TO_CHECK) {
+                Log.d(TAG, "Early termination: found ${candidates.size} candidates after checking $checked words")
+                break
+            }
+            
             // Skip if word lengths differ too much
             if (kotlin.math.abs(dictWord.length - word.length) > MAX_EDIT_DISTANCE) {
                 continue
             }
             
+            checked++
             val editDistance = levenshteinDistance(word, dictWord)
             
             // Only consider words within edit distance threshold
@@ -145,6 +170,80 @@ class AutocorrectEngine(
             }
         }
         
+        val elapsedMs = System.currentTimeMillis() - startTime
+        Log.d(TAG, "Generated ${candidates.size} candidates in ${elapsedMs}ms (checked $checked words)")
+        
+        return candidates
+    }
+    
+    /**
+     * Get candidate words using optimized filtering strategies.
+     * With only ~1,174 words, we can afford to be more lenient.
+     * Uses the DictionaryRepository's prefix index for O(1) lookups.
+     */
+    private fun getCandidateWords(word: String): Set<String> {
+        // With minimal dictionary (1,174 words), just check all words for short inputs
+        // This is still very fast and catches all typo types
+        if (word.length <= 3) {
+            return dictionaryRepository.getAllWords()
+        }
+        
+        val candidates = mutableSetOf<String>()
+        
+        // Strategy 1: Same prefix (first 2 chars)
+        if (word.length >= 2) {
+            val prefix = word.substring(0, 2)
+            candidates.addAll(dictionaryRepository.getWordsByPrefix(prefix))
+        }
+        
+        // Strategy 2: Prefix with first char typo (keyboard neighbors)
+        if (word.isNotEmpty()) {
+            val firstChar = word[0]
+            val neighbors = getKeyboardNeighbors(firstChar)
+            
+            for (neighbor in neighbors) {
+                val altPrefix = if (word.length >= 2) {
+                    "$neighbor${word[1]}"
+                } else {
+                    neighbor.toString()
+                }
+                candidates.addAll(dictionaryRepository.getWordsByPrefix(altPrefix))
+            }
+        }
+        
+        // Strategy 3: Prefix with second char typo (keyboard neighbors)
+        if (word.length >= 2) {
+            val secondChar = word[1]
+            val neighbors = getKeyboardNeighbors(secondChar)
+            
+            for (neighbor in neighbors) {
+                val altPrefix = "${word[0]}$neighbor"
+                candidates.addAll(dictionaryRepository.getWordsByPrefix(altPrefix))
+            }
+        }
+        
+        // Strategy 4: Transposition of first two chars
+        if (word.length >= 2) {
+            val transposedPrefix = "${word[1]}${word[0]}"
+            candidates.addAll(dictionaryRepository.getWordsByPrefix(transposedPrefix))
+        }
+        
+        // Strategy 5: First char deleted (for insertion errors like "wrld" -> "world")
+        if (word.length >= 2) {
+            val deletedPrefix = word.substring(1, 2)
+            candidates.addAll(dictionaryRepository.getWordsByPrefix(deletedPrefix))
+        }
+        
+        // Strategy 6: Character inserted between first two chars (e.g., "wrld" -> "world")
+        // Check all possible insertions at position 1
+        if (word.length >= 2) {
+            for (c in 'a'..'z') {
+                val insertedPrefix = "${word[0]}$c"
+                candidates.addAll(dictionaryRepository.getWordsByPrefix(insertedPrefix))
+            }
+        }
+        
+        // With minimal dictionary, we can afford to check more candidates
         return candidates
     }
     

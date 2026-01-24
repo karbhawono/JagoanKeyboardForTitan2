@@ -65,6 +65,7 @@ import ai.jagoan.keyboard.titan2.domain.model.ModifierState
 import ai.jagoan.keyboard.titan2.domain.model.ModifiersState
 import ai.jagoan.keyboard.titan2.domain.model.SuggestionBarMode
 import ai.jagoan.keyboard.titan2.domain.model.SymbolCategory
+import ai.jagoan.keyboard.titan2.domain.repository.AddWordResult
 import ai.jagoan.keyboard.titan2.domain.repository.SettingsRepository
 import ai.jagoan.keyboard.titan2.ui.ime.SymbolPickerOverlay
 import ai.jagoan.keyboard.titan2.util.Debouncer
@@ -93,6 +94,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
 
     @Inject
     lateinit var autocorrectManager: ai.jagoan.keyboard.titan2.engine.AutocorrectManager
+    
+    @Inject
+    lateinit var dictionaryRepository: ai.jagoan.keyboard.titan2.domain.repository.DictionaryRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -110,6 +114,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     
     // Debouncer for notification updates to reduce battery drain
     private var notificationDebouncer: Debouncer? = null
+    
+    // Debouncer for autocorrect suggestions to reduce CPU usage on rapid typing
+    private var suggestionDebouncer: Debouncer? = null
 
     // Symbol picker window management
     private var windowManager: WindowManager? = null
@@ -165,12 +172,28 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         keyEventHandler.setViModeListener { viMode ->
             suggestionBarView?.updateViMode(viMode)
         }
+        
+        // Set up Vi command mode callbacks for add-to-dictionary
+        keyEventHandler.onAddToDictionaryRequested = { word ->
+            showAddToDictionaryDialog(word)
+        }
+        
+        keyEventHandler.onAddToDictionaryWithLanguage = { word, language ->
+            addWordToDictionary(word, language)
+        }
+        
+        keyEventHandler.onViCommandModeChanged = { active, command ->
+            updateViCommandDisplay(active, command)
+        }
 
         // Initialize window manager for symbol picker and suggestion bar
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         
         // Initialize notification debouncer (100ms delay to batch rapid updates)
         notificationDebouncer = Debouncer(serviceScope, delayMs = 100L)
+        
+        // Initialize suggestion debouncer (50ms delay for responsive autocorrect without CPU spikes)
+        suggestionDebouncer = Debouncer(serviceScope, delayMs = 50L)
 
         // Set up modifier state listener
         keyEventHandler.setModifierStateListener(this)
@@ -266,6 +289,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             setOnSuggestionClickListener { word ->
                 handleSuggestionClick(word)
             }
+            setOnSuggestionLongClickListener { word ->
+                showAddToDictionaryDialog(word)
+            }
             // Initialize with empty state
             updateSuggestions("", emptyList(), currentSuggestionBarMode)
         }
@@ -312,8 +338,129 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         updateSuggestions("", emptyList())
     }
 
+    private var pendingWordToAdd: String? = null
+    private var isShowingLanguageSelection = false
+    private var isShowingFeedback = false
+    
+    private fun showAddToDictionaryDialog(word: String) {
+        LazyLog.d(TAG) { "Long-press detected on suggestion: $word" }
+        Log.d(TAG, "AddToDict: showAddToDictionaryDialog called with word='$word'")
+        
+        // Show language selection in suggestion bar
+        pendingWordToAdd = word
+        showLanguageSelection(word)
+    }
+    
+    private fun showLanguageSelection(word: String) {
+        // Show language options as clickable chips in suggestion bar
+        Log.d(TAG, "AddToDict: showLanguageSelection called with word='$word'")
+        isShowingLanguageSelection = true
+        Log.d(TAG, "AddToDict: isShowingLanguageSelection = true")
+        suggestionBarView?.showLanguageSelection(word) { language ->
+            Log.d(TAG, "AddToDict: Language selected: $language")
+            addWordToDictionary(word, language)
+            pendingWordToAdd = null
+            isShowingLanguageSelection = false
+            Log.d(TAG, "AddToDict: isShowingLanguageSelection = false")
+            // Restore normal suggestions
+            updateSuggestionsFromAutocorrect()
+        }
+        Log.d(TAG, "AddToDict: showLanguageSelection completed, chips should be visible")
+    }
+    
+    private fun addWordToDictionary(word: String, language: String) {
+        Log.d(TAG, "AddToDict: addWordToDictionary called - word='$word', language='$language'")
+        serviceScope.launch {
+            Log.d(TAG, "AddToDict: Calling dictionaryRepository.addWordToDictionary...")
+            val result = dictionaryRepository.addWordToDictionary(word, language)
+            Log.d(TAG, "AddToDict: Repository returned result: $result")
+            
+            val message = when (result) {
+                is AddWordResult.Success -> {
+                    Log.d(TAG, "AddToDict: Success - rebuilding prefix index")
+                    // Rebuild autocorrect index to include new word
+                    dictionaryRepository.rebuildPrefixIndex()
+                    val langName = if (language == "id") "Indonesian" else "English"
+                    "✓ Added '$word' to $langName"
+                }
+                is AddWordResult.AlreadyExists -> {
+                    Log.d(TAG, "AddToDict: Word already exists")
+                    "⚠ '$word' already exists in dictionary"
+                }
+                is AddWordResult.InvalidFormat -> {
+                    Log.d(TAG, "AddToDict: Invalid format")
+                    "⚠ Invalid word format"
+                }
+                is AddWordResult.Error -> {
+                    Log.e(TAG, "AddToDict: Error - ${result.message}")
+                    "⚠ Error: ${result.message}"
+                }
+            }
+            
+            Log.d(TAG, "AddToDict: Showing feedback message: $message")
+            // Show feedback in suggestion bar (Toast doesn't work well in IME)
+            showFeedbackInSuggestionBar(message)
+            
+            // Also try Toast as fallback (may not be visible)
+            android.widget.Toast.makeText(
+                this@JagoanInputMethodService,
+                message,
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            Log.d(TAG, "AddToDict: Feedback shown")
+        }
+    }
+    
+    private fun showFeedbackInSuggestionBar(message: String) {
+        // Show feedback message in suggestion bar for 5 seconds
+        isShowingFeedback = true
+        suggestionBarView?.showFeedback(message)
+        
+        // Clear after 5 seconds and restore normal suggestions
+        serviceScope.launch {
+            kotlinx.coroutines.delay(5000)
+            isShowingFeedback = false
+            updateSuggestionsFromAutocorrect()
+        }
+    }
+    
+    private fun updateViCommandDisplay(active: Boolean, command: String) {
+        Log.d(TAG, "AddToDict: updateViCommandDisplay called - active=$active, isShowingLanguageSelection=$isShowingLanguageSelection, isShowingFeedback=$isShowingFeedback")
+        if (active) {
+            // Don't show Vi command if we're showing feedback
+            if (isShowingFeedback) {
+                Log.d(TAG, "AddToDict: Skipping Vi command display - feedback message is active")
+                return
+            }
+            // Show Vi command in suggestion bar
+            LazyLog.d(TAG) { "Vi command mode: $command" }
+            suggestionBarView?.showViCommand(command)
+        } else {
+            // Don't restore suggestions if we're showing language selection or feedback
+            if (!isShowingLanguageSelection && !isShowingFeedback) {
+                Log.d(TAG, "AddToDict: Restoring normal suggestions (not showing language selection or feedback)")
+                // Restore normal suggestions
+                updateSuggestionsFromAutocorrect()
+            } else {
+                Log.d(TAG, "AddToDict: NOT restoring suggestions - language selection or feedback is active")
+            }
+        }
+    }
+    
     private fun updateSuggestions(word: String, suggestions: List<ai.jagoan.keyboard.titan2.domain.model.AutocorrectSuggestion>) {
         LazyLog.d(TAG) { "updateSuggestions - word: '$word', suggestions: ${suggestions.size}" }
+        
+        // Don't update if showing feedback message
+        if (isShowingFeedback) {
+            Log.d(TAG, "AddToDict: Skipping updateSuggestions - feedback message is active")
+            return
+        }
+        
+        // Don't update if showing language selection
+        if (isShowingLanguageSelection) {
+            Log.d(TAG, "AddToDict: Skipping updateSuggestions - language selection is active")
+            return
+        }
         
         // Update the suggestion bar view with current mode
         suggestionBarView?.updateSuggestions(word, suggestions, currentSuggestionBarMode)
@@ -331,22 +478,43 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
     }
     
     private fun updateSuggestionsFromAutocorrect() {
-        Log.d(TAG, "updateSuggestionsFromAutocorrect called")
-        val currentWord = autocorrectManager.getCurrentWord()
-        Log.d(TAG, "Current word from autocorrect: '$currentWord'")
-        
-        if (currentWord.isEmpty()) {
-            Log.d(TAG, "Current word is empty, clearing suggestions")
-            updateSuggestions("", emptyList())
+        // Don't update suggestions if we're showing language selection
+        if (isShowingLanguageSelection) {
+            Log.d(TAG, "AddToDict: Skipping updateSuggestionsFromAutocorrect - language selection is active")
             return
         }
         
-        // Get suggestions from autocorrect manager
-        val suggestions = autocorrectManager.getSuggestions(currentWord, maxSuggestions = 3)
-        Log.d(TAG, "Got ${suggestions.size} suggestions for '$currentWord': ${suggestions.map { it.suggestion }}")
+        // Don't update suggestions if we're showing feedback message
+        if (isShowingFeedback) {
+            Log.d(TAG, "AddToDict: Skipping updateSuggestionsFromAutocorrect - feedback message is active")
+            return
+        }
         
-        // Update UI
-        updateSuggestions(currentWord, suggestions)
+        // Don't update suggestions if we're in Vi command mode (typing :atd, etc.)
+        if (keyEventHandler.isInViCommandMode()) {
+            Log.d(TAG, "AddToDict: Skipping updateSuggestionsFromAutocorrect - Vi command mode is active")
+            return
+        }
+        
+        // Debounce suggestion updates to avoid overwhelming CPU during rapid typing
+        suggestionDebouncer?.debounce {
+            Log.d(TAG, "updateSuggestionsFromAutocorrect called")
+            val currentWord = autocorrectManager.getCurrentWord()
+            Log.d(TAG, "Current word from autocorrect: '$currentWord'")
+            
+            if (currentWord.isEmpty()) {
+                Log.d(TAG, "Current word is empty, clearing suggestions")
+                updateSuggestions("", emptyList())
+                return@debounce
+            }
+            
+            // Get suggestions from autocorrect manager
+            val suggestions = autocorrectManager.getSuggestions(currentWord, maxSuggestions = 3)
+            Log.d(TAG, "Got ${suggestions.size} suggestions for '$currentWord': ${suggestions.map { it.suggestion }}")
+            
+            // Update UI
+            updateSuggestions(currentWord, suggestions)
+        }
     }
 
     override fun onEvaluateInputViewShown(): Boolean {
@@ -553,8 +721,10 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
             }
         }
         
-        // Update suggestions
-        updateSuggestionsFromAutocorrect()
+        // Update suggestions (unless showing language selection, feedback, or in Vi command mode)
+        if (!isShowingLanguageSelection && !isShowingFeedback && !keyEventHandler.isInViCommandMode()) {
+            updateSuggestionsFromAutocorrect()
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -569,8 +739,9 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         val result = keyEventHandler.handleKeyDown(event, currentInputConnection)
         Log.d(TAG, "handleKeyDown returned: $result")
         
-        // Autocorrect runs in background (no UI)
-        serviceScope.launch {
+        // Autocorrect runs in background with debouncing to avoid CPU spikes
+        // (unless showing language selection, feedback, or in Vi command mode)
+        if (!isShowingLanguageSelection && !isShowingFeedback && !keyEventHandler.isInViCommandMode()) {
             updateSuggestionsFromAutocorrect()
         }
         
@@ -779,6 +950,10 @@ class JagoanInputMethodService : InputMethodService(), ModifierStateListener {
         // Cancel any pending debounced notifications
         notificationDebouncer?.cancel()
         notificationDebouncer = null
+        
+        // Cancel any pending debounced suggestions
+        suggestionDebouncer?.cancel()
+        suggestionDebouncer = null
 
         // Clean up KeyEventHandler resources (accent handlers, etc.)
         keyEventHandler.cleanup()

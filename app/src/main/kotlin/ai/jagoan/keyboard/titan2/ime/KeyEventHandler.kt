@@ -120,6 +120,18 @@ class KeyEventHandler @Inject constructor(
     private var pendingRKey = false
     private var viClipboard: String = ""
     private var viModeHandler: android.os.Handler = android.os.Handler(android.os.Looper.getMainLooper())
+    
+    // Vi command mode state (for :atd, :atdi, :atde commands)
+    private var viCommandMode = false
+    private var viCommandBuffer = StringBuilder()
+    
+    // Public getter for Vi command mode state
+    fun isInViCommandMode(): Boolean = viCommandMode
+    
+    // Callbacks for add-to-dictionary feature
+    var onAddToDictionaryRequested: ((word: String) -> Unit)? = null
+    var onAddToDictionaryWithLanguage: ((word: String, language: String) -> Unit)? = null
+    var onViCommandModeChanged: ((active: Boolean, command: String) -> Unit)? = null
 
     // Currency shortcut tracking (SYM+C+C+CountryCode)
     private var currencyShortcutMode = false
@@ -171,6 +183,15 @@ class KeyEventHandler @Inject constructor(
             ViMode.DISABLED -> ViMode.ENABLED
             ViMode.ENABLED -> ViMode.DISABLED
         }
+        
+        // Clear command mode state when toggling Vi mode
+        if (viMode == ViMode.DISABLED) {
+            viCommandMode = false
+            viCommandBuffer.clear()
+            onViCommandModeChanged?.invoke(false, "")
+            Log.d(TAG, "Vi: Cleared command mode on Vi mode disable")
+        }
+        
         viModeListener?.invoke(viMode)
         Log.d(TAG, "Vi mode toggled to: $viMode")
     }
@@ -516,10 +537,14 @@ class KeyEventHandler @Inject constructor(
             pendingVKey = false
         }
 
-        // Handle Vi mode commands
+        // Handle Vi mode commands - MUST be before any text insertion
         if (viMode == ViMode.ENABLED) {
             val viResult = handleViModeCommand(event, inputConnection)
             if (viResult == KeyEventResult.Handled) {
+                return KeyEventResult.Handled
+            }
+            // If in command mode, prevent ALL keys from being inserted
+            if (viCommandMode) {
                 return KeyEventResult.Handled
             }
         }
@@ -1126,6 +1151,32 @@ class KeyEventHandler @Inject constructor(
      * Handle Vi mode commands
      */
     private fun handleViModeCommand(event: KeyEvent, ic: InputConnection): KeyEventResult {
+        // Handle Vi command mode (for :atd, :atdi, :atde)
+        // MUST handle this FIRST before any other Vi commands
+        if (viCommandMode) {
+            val result = handleViCommandInput(event, ic)
+            Log.d(TAG, "Vi: Command mode handling key=${event.keyCode}, result=$result")
+            return result
+        }
+        
+        // Check for colon to enter command mode - check by unicode char with metaState
+        // This works for both Shift+; (normal keyboards) and ALT+p (Titan 2)
+        // Must use getUnicodeChar(metaState) to properly handle ALT modifier
+        val unicodeChar = event.getUnicodeChar(event.metaState).toChar()
+        
+        // Only enter command mode if not already in it AND we get a colon
+        if (unicodeChar == ':' && !viCommandMode) {
+            viCommandMode = true
+            viCommandBuffer.clear()
+            viCommandBuffer.append(":")
+            // Delay the UI update slightly to prevent initial flicker
+            viModeHandler.postDelayed({
+                onViCommandModeChanged?.invoke(true, viCommandBuffer.toString())
+            }, 50)
+            Log.d(TAG, "Vi: ✓ Entered command mode with ':' (keyCode=${event.keyCode})")
+            return KeyEventResult.Handled
+        }
+        
         // Handle pending R key (replace character)
         if (pendingRKey) {
             val char = event.unicodeChar
@@ -1263,9 +1314,175 @@ class KeyEventHandler @Inject constructor(
             }
         }
     }
+    
+    /**
+     * Handle Vi command input (when in command mode after typing ":")
+     * This MUST return Handled for ALL keys to prevent them being inserted into text
+     */
+    private fun handleViCommandInput(event: KeyEvent, ic: InputConnection): KeyEventResult {
+        val char = event.getUnicodeChar(event.metaState).toChar()
+        Log.d(TAG, "Vi: handleViCommandInput - keyCode=${event.keyCode}, char='$char' (${char.code}), action=${event.action}")
+        
+        // Check for Enter key (multiple possible keycodes)
+        val isEnterKey = event.keyCode == KeyEvent.KEYCODE_ENTER || 
+                         event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                         event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                         char == '\n' || char == '\r'
+        
+        if (isEnterKey) {
+            // Execute command
+            val command = viCommandBuffer.toString()
+            Log.d(TAG, "Vi: ✓✓✓ ENTER DETECTED! Executing command: '$command'")
+            executeViCommand(command, ic)
+            viCommandMode = false
+            viCommandBuffer.clear()
+            viModeHandler.removeCallbacksAndMessages(null)
+            onViCommandModeChanged?.invoke(false, "")
+            Log.d(TAG, "Vi: Command executed and mode cleared")
+            return KeyEventResult.Handled
+        }
+        
+        when (event.keyCode) {
+            
+            KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_BACK -> {
+                // Cancel command mode
+                viCommandMode = false
+                viCommandBuffer.clear()
+                viModeHandler.removeCallbacksAndMessages(null)
+                onViCommandModeChanged?.invoke(false, "")
+                Log.d(TAG, "Vi: Command mode cancelled")
+                return KeyEventResult.Handled
+            }
+            
+            KeyEvent.KEYCODE_DEL -> {
+                // Backspace in command mode
+                if (viCommandBuffer.length > 1) {
+                    viCommandBuffer.deleteCharAt(viCommandBuffer.length - 1)
+                    // Batch UI updates to prevent flickering
+                    viModeHandler.removeCallbacksAndMessages(null)
+                    viModeHandler.postDelayed({
+                        onViCommandModeChanged?.invoke(true, viCommandBuffer.toString())
+                    }, 30)
+                    Log.d(TAG, "Vi: Backspace - buffer now: $viCommandBuffer")
+                } else {
+                    // If only ":" left, exit command mode
+                    viCommandMode = false
+                    viCommandBuffer.clear()
+                    viModeHandler.removeCallbacksAndMessages(null)
+                    onViCommandModeChanged?.invoke(false, "")
+                    Log.d(TAG, "Vi: Command mode exited via backspace")
+                }
+                return KeyEventResult.Handled
+            }
+            
+            else -> {
+                // Add character to command buffer - use getUnicodeChar with metaState
+                // Note: char was already retrieved at the start of this function
+                if (char.code != 0 && (char.isLetterOrDigit() || char.isWhitespace())) {
+                    viCommandBuffer.append(char)
+                    // Batch UI updates to prevent flickering
+                    viModeHandler.removeCallbacksAndMessages(null)
+                    viModeHandler.postDelayed({
+                        onViCommandModeChanged?.invoke(true, viCommandBuffer.toString())
+                    }, 30)
+                    Log.d(TAG, "Vi: Added '$char' - buffer: $viCommandBuffer")
+                } else {
+                    Log.d(TAG, "Vi: Ignoring char: '$char' (code=${char.code})")
+                }
+                // ALWAYS return Handled to prevent key from being inserted into text
+                return KeyEventResult.Handled
+            }
+        }
+    }
+    
+    /**
+     * Execute Vi command (e.g., :atd, :atdi, :atde)
+     */
+    private fun executeViCommand(command: String, ic: InputConnection) {
+        Log.d(TAG, "Vi: ═══════════════════════════════════════")
+        Log.d(TAG, "Vi: executeViCommand called!")
+        Log.d(TAG, "Vi: Command = '$command'")
+        Log.d(TAG, "Vi: Command length = ${command.length}")
+        Log.d(TAG, "Vi: ═══════════════════════════════════════")
+        
+        when (command) {
+            ":atd" -> {
+                Log.d(TAG, "Vi: ✓ Matched :atd command!")
+                // Add word to dictionary - prompt for language
+                // Try to get word from: 1) cursor position, 2) current word being typed
+                var word = getCurrentWordUnderCursor(ic)
+                Log.d(TAG, "Vi: Word under cursor = '$word'")
+                if (word.isBlank()) {
+                    word = currentWord.toString()
+                    Log.d(TAG, "Vi: Using current word from typing = '$word'")
+                }
+                if (word.isNotBlank()) {
+                    Log.d(TAG, "Vi: Calling onAddToDictionaryRequested callback...")
+                    onAddToDictionaryRequested?.invoke(word)
+                    Log.d(TAG, "Vi: ✓ Callback invoked for :atd with word '$word'")
+                } else {
+                    Log.w(TAG, "Vi: ✗ :atd - no word found (type a word first)")
+                }
+            }
+            
+            ":atdi" -> {
+                Log.d(TAG, "Vi: ✓ Matched :atdi command!")
+                // Add word to Indonesian dictionary directly
+                var word = getCurrentWordUnderCursor(ic)
+                Log.d(TAG, "Vi: Word under cursor = '$word'")
+                if (word.isBlank()) {
+                    word = currentWord.toString()
+                    Log.d(TAG, "Vi: Using current word from typing = '$word'")
+                }
+                if (word.isNotBlank()) {
+                    Log.d(TAG, "Vi: Calling onAddToDictionaryWithLanguage callback for Indonesian...")
+                    onAddToDictionaryWithLanguage?.invoke(word, "id")
+                    Log.d(TAG, "Vi: ✓ Callback invoked for :atdi with word '$word'")
+                } else {
+                    Log.w(TAG, "Vi: ✗ :atdi - no word found (type a word first)")
+                }
+            }
+            
+            ":atde" -> {
+                Log.d(TAG, "Vi: ✓ Matched :atde command!")
+                // Add word to English dictionary directly
+                var word = getCurrentWordUnderCursor(ic)
+                Log.d(TAG, "Vi: Word under cursor = '$word'")
+                if (word.isBlank()) {
+                    word = currentWord.toString()
+                    Log.d(TAG, "Vi: Using current word from typing = '$word'")
+                }
+                if (word.isNotBlank()) {
+                    Log.d(TAG, "Vi: Calling onAddToDictionaryWithLanguage callback for English...")
+                    onAddToDictionaryWithLanguage?.invoke(word, "en")
+                    Log.d(TAG, "Vi: ✓ Callback invoked for :atde with word '$word'")
+                } else {
+                    Log.w(TAG, "Vi: ✗ :atde - no word found (type a word first)")
+                }
+            }
+            
+            else -> {
+                Log.w(TAG, "Vi: ✗ Unknown command: '$command'")
+                Log.w(TAG, "Vi: Command bytes: ${command.toByteArray().joinToString { it.toString() }}")
+            }
+        }
+        Log.d(TAG, "Vi: ═══════════════════════════════════════")
+    }
+    
+    /**
+     * Get the word under cursor for Vi commands
+     */
+    private fun getCurrentWordUnderCursor(ic: InputConnection): String {
+        val textBefore = ic.getTextBeforeCursor(50, 0)?.toString() ?: ""
+        val textAfter = ic.getTextAfterCursor(50, 0)?.toString() ?: ""
+        
+        val wordBefore = textBefore.takeLastWhile { it.isLetter() || it == '\'' || it == '-' }
+        val wordAfter = textAfter.takeWhile { it.isLetter() || it == '\'' || it == '-' }
+        
+        return wordBefore + wordAfter
+    }
 
-    // Vi mode cursor movement functions
-
+    // Movement commands
     private fun moveCursorLeft(ic: InputConnection) {
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT))
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_LEFT))
