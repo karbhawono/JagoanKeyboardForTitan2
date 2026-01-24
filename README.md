@@ -13,7 +13,7 @@ Jagoan Keyboard for Titan 2 is a native Android keyboard application that enhanc
 - 🚀 Built with modern Android architecture (Clean Architecture + MVVM)
 - 🎭 Symbol picker with intelligent layout (19 non-redundant punctuation symbols)
 - 🇮🇩 Default settings optimized for Indonesian users
-- 🌙 Pure black theme for OLED battery efficiency
+- 🌙 Pure black theme
 
 ## ✨ Features
 
