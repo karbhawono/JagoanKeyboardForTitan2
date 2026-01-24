@@ -4,7 +4,7 @@ A modern, feature-rich Input Method Editor (IME) keyboard application specifical
 
 ## 🎯 Project Overview
 
-Jagoan Keyboard for Titan 2 is a native Android keyboard application that enhances the typing experience on devices with physical QWERTY keyboards. The app features an intelligent symbol picker that eliminates redundant symbols already available on the physical keyboard, customizable typing behaviors, and a sleek dark theme optimized for OLED displays.
+Jagoan Keyboard for Titan 2 is a native Android keyboard application that enhances the typing experience on devices with physical QWERTY keyboards. The app features an intelligent symbol picker that eliminates redundant symbols already available on the physical keyboard, customizable typing behaviors, and a sleek dark theme.
 
 **Key Highlights:**
 
