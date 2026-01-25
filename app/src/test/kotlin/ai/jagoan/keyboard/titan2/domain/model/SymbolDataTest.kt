@@ -15,6 +15,13 @@
  *
  * Modifications:
  * - Created unit tests for symbol data validation
+ */
+
+package ai.jagoan.keyboard.titan2.domain.model
+
+import com.google.common.truth.Truth.assertThat
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Test
 
 @DisplayName("SymbolData Tests")
 class SymbolDataTest {
