@@ -2,6 +2,10 @@
 
 A modern, feature-rich Input Method Editor (IME) keyboard application specifically designed for the Unihertz Titan 2 physical QWERTY keyboard. Built with cutting-edge Android technologies and inspired by the iconic BlackBerry Passport design.
 
+**Made with ❤️ for the Unihertz Titan 2 Community**
+
+_Jagoan Keyboard - Making physical keyboard typing great again!_
+
 ## 🎯 Project Overview
 
 Jagoan Keyboard for Titan 2 is a native Android keyboard application that enhances the typing experience on devices with physical QWERTY keyboards. The app features an intelligent symbol picker that eliminates redundant symbols already available on the physical keyboard, customizable typing behaviors, and a sleek dark theme.
@@ -514,6 +518,3 @@ Opening a private security advisory on GitHub.
 
 ---
 
-**Built with ❤️ for the Unihertz Titan 2 Community**
-
-_Jagoan Keyboard - Making physical keyboard typing great again!_
