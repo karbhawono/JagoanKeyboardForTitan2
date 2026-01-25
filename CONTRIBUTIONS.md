@@ -109,26 +109,30 @@ This document differentiates the features and contributions from the original au
 
 **Repository**: https://github.com/karbhawono/JagoanKeyboardForTitan2  
 **Starting Version**: 0.3.0 (forked from titan2keyboard 0.2.0)  
-**Current Version**: 0.4.7  
+**Current Version**: 0.5.0  
 **Copyright**: 2025 Aryo Karbhawono  
 **License**: Apache License 2.0
 
 ### Major Enhancements & New Features
 
-#### 1. **Intelligent Autocorrect System** (v0.4.0)
+#### 1. **Intelligent Autocorrect System** (v0.4.0, v0.5.0)
 
 - **NEW**: `DictionaryRepository` interface and implementation
 - **NEW**: Multi-language dictionary support (English, Indonesian)
-- **NEW**: 53,902+ English words from multiple sources
+- **ENHANCED v0.5.0**: Dictionary expansion to 10,046 total words (8.5x increase)
+- **ENHANCED v0.5.0**: English dictionary: 5,000 high-frequency words (from ~553)
+- **ENHANCED v0.5.0**: Indonesian dictionary: 5,000 common words (from ~621)
+- **NEW**: English contractions support (46 entries)
 - **NEW**: Real-time word validation during typing
 - **NEW**: Typo detection and correction suggestions
-- **NEW**: Word frequency-based suggestions
+- **NEW**: Levenshtein edit distance algorithm (max 2 edits)
+- **NEW**: Keyboard proximity analysis for QWERTY layout
 - **NEW**: Context-aware corrections
 - **NEW**: Sentence boundary detection
-- **NEW**: Proper noun handling
-- **NEW**: Multi-dictionary architecture (base, common, extended)
+- **NEW**: Confidence scoring system (high/medium thresholds)
 - **NEW**: Python tools for dictionary processing
 - **NEW**: Word deduplication and normalization tools
+- **NEW v0.5.0**: Performance optimization (<100ms load, ~0.5MB memory)
 
 #### 2. **Dictionary Management & Backup System** (v0.4.7)
 
@@ -258,7 +262,7 @@ This document differentiates the features and contributions from the original au
 - **ENHANCED**: Unicode character detection improvements
 - **ENHANCED**: Modifier state synchronization
 
-#### 11. **Testing Infrastructure** (v0.4.0)
+#### 11. **Testing Infrastructure** (v0.4.0, v0.5.0)
 
 - **NEW**: JUnit 5 integration
 - **NEW**: MockK for mocking
@@ -267,12 +271,20 @@ This document differentiates the features and contributions from the original au
 - **NEW**: Jacoco code coverage
 - **NEW**: `SettingsRepositoryImplTest` - 16 test cases
 - **NEW**: `NumberFormatterTest` - Comprehensive formatting tests
+- **NEW v0.5.0**: `DictionaryAssetCountTest` - 12 dictionary validation tests
+- **NEW v0.5.0**: Automated dictionary quality checks (word counts, duplicates, case)
+- **NEW v0.5.0**: Common words verification tests
+- **NEW v0.5.0**: File size and performance validation
 - **NEW**: Test utilities and helpers
 - **NEW**: Coverage reporting setup
+- **ENHANCED v0.5.0**: 59 total tests passing (0 failures)
 
 #### 12. **Documentation** (All versions)
 
-- **NEW**: `changes.md` - Comprehensive changelog with 1500+ lines
+- **NEW**: `CHANGES.md` - Comprehensive changelog with 1700+ lines
+- **ENHANCED v0.5.0**: v0.5.0 changelog entry (dictionary expansion)
+- **NEW**: `FEATURES.md` - Complete feature documentation
+- **ENHANCED v0.5.0**: Updated autocorrect section with 5k word details
 - **NEW**: `USAGE.md` - Detailed usage guide
 - **NEW**: `BACKUP_EXPORT_IMPLEMENTATION.md` - Implementation details
 - **NEW**: `README.md` - Enhanced with all features
@@ -299,6 +311,18 @@ This document differentiates the features and contributions from the original au
 - **NEW**: License viewer UI
 - **NEW**: Library version tracking
 
+#### 15. **Development Tools & Automation** (v0.5.0)
+
+- **NEW**: `tools/expand_dictionaries.py` - Dictionary expansion automation
+- **NEW**: `tools/test_dictionary_performance.py` - On-device performance testing via adb
+- **NEW**: `tools/verify_dictionaries.sh` - Quick dictionary verification script
+- **NEW**: Automated word count validation
+- **NEW**: Dictionary normalization (lowercase, deduplication)
+- **NEW**: Quality checks (duplicates, empty lines, case validation)
+- **NEW**: Performance testing framework for dictionary loading
+- **NEW**: Device testing integration with adb
+- **NEW**: Apache 2.0 license headers in all tool files
+
 ---
 
 ## 📊 Statistics Summary
@@ -317,23 +341,25 @@ This document differentiates the features and contributions from the original au
 
 - **Autocorrect System**: 100% new
 - **Dictionary Management**: 100% new
+- **Dictionary Expansion (v0.5.0)**: 100% new (8.5x word increase)
 - **Vi-mode**: 100% new
 - **Suggestion Bar**: 100% new
 - **Accent Support**: 100% new
 - **Performance Utilities**: 100% new
 - **Number Formatting**: 100% new
+- **Development Tools (v0.5.0)**: 100% new
 - **UI Redesign**: ~80% redesigned
-- **Testing**: 100% new
+- **Testing**: 100% new (59 tests total as of v0.5.0)
 - **Documentation**: ~90% new/enhanced
-- **Estimated Additional Lines of Code**: ~8,000-10,000 lines
-- **New/Enhanced Files**: ~40+ Kotlin files
+- **Estimated Additional Lines of Code**: ~10,000-12,000 lines
+- **New/Enhanced Files**: ~45+ Kotlin files + 3 tool scripts
 
 ### Version Progression
 
 - **v0.2.0** (Divefire): Base keyboard functionality
 - **v0.3.0** (Aryo): Initial public release with foundation
 - **v0.3.1**: Bug fixes and improvements
-- **v0.4.0**: Major autocorrect, accents, UI redesign
+- **v0.4.0** (Aryo): Major autocorrect, accents, UI redesign
 - **v0.4.1**: Number formatting, key handling improvements
 - **v0.4.2**: Suggestion bar initial implementation
 - **v0.4.3**: Vi-mode navigation, suggestion bar enhancements
@@ -341,6 +367,7 @@ This document differentiates the features and contributions from the original au
 - **v0.4.5**: Dictionary updates
 - **v0.4.6**: Dictionary overhaul (53,902 words)
 - **v0.4.7**: Dictionary management, backup/export/import, Vi-mode dictionary commands
+- **v0.5.0**: Dictionary expansion (10,046 words), comprehensive testing (59 tests), development tools
 
 ---
 
@@ -393,21 +420,23 @@ Licensed under the Apache License, Version 2.0
 
 **Aryo's JagoanKeyboardForTitan2** built upon this with:
 
-- Intelligent autocorrect with 53,902+ word dictionary
+- Intelligent autocorrect with 10,046 word dictionary (5k English + 5k Indonesian + 46 contractions)
 - Complete dictionary management & backup system
-- Vi-mode cursor navigation
+- Vi-mode cursor navigation with dictionary commands
 - Suggestion bar for IME controls
-- Multi-language accent support
-- Advanced symbol picker shortcuts
-- Performance optimization utilities
-- Smart number formatting
-- Complete UI/UX redesign
-- Comprehensive testing infrastructure
-- Extensive documentation
+- Multi-language accent support (150+ characters, 7 languages)
+- Advanced symbol picker shortcuts (direct category access)
+- Performance optimization utilities (LazyLog, Debouncer, ObjectPool)
+- Smart number formatting (Indonesian & international)
+- Complete UI/UX redesign (Material Design 3)
+- Comprehensive testing infrastructure (59 tests including 12 dictionary tests)
+- Development automation tools (Python scripts, shell verification)
+- Extensive documentation (CHANGES.md, FEATURES.md, CONTRIBUTIONS.md)
 
 **Result**: A feature-rich, high-performance physical keyboard IME optimized for Unihertz Titan 2, combining solid architectural foundations with modern features and user experience enhancements.
 
 ---
 
-**Last Updated**: 2025-01-24  
-**Document Version**: 1.0
+**Last Updated**: 2025-01-25  
+**Document Version**: 1.1  
+**Latest Release**: v0.5.0 - Dictionary Expansion & Testing Suite
